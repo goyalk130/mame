@@ -74,7 +74,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (!initialIssue.parent_id) { setParentIssue(null); return; }
     const { data } = await supabase
       .from("issues")
-      .select("id, key, title, type, status")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
       .eq("id", initialIssue.parent_id)
       .single();
     setParentIssue(data as Issue || null);
@@ -723,8 +723,8 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
               )}
 
               <div className="pt-2 border-t border-gray-200 space-y-1 text-xs text-gray-400">
-                <div>Created {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}</div>
-                <div>Updated {formatDistanceToNow(new Date(issue.updated_at), { addSuffix: true })}</div>
+                {issue.created_at && <div>Created {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}</div>}
+                {issue.updated_at && <div>Updated {formatDistanceToNow(new Date(issue.updated_at), { addSuffix: true })}</div>}
               </div>
             </div>
           </div>
