@@ -61,7 +61,7 @@ create table if not exists issues (
   title text not null,
   description text,
   type text not null default 'task' check (type in ('epic', 'story', 'task', 'bug', 'subtask')),
-  status text not null default 'triage' check (status in ('triage', 'todo', 'in_progress', 'in_review', 'done')),
+  status text not null default 'triage' check (status in ('triage', 'todo', 'in_progress', 'in_review', 'blocked', 'done', 'not_done', 'completed')),
   priority text not null default 'medium' check (priority in ('highest', 'high', 'medium', 'low', 'lowest')),
   project_id uuid references projects(id) on delete cascade not null,
   sprint_id uuid references sprints(id) on delete set null,
@@ -256,6 +256,6 @@ alter table issues alter column sort_order type bigint using sort_order::bigint;
 alter table issues alter column status set default 'triage';
 do $$ begin
   alter table issues drop constraint if exists issues_status_check;
-  alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','done','completed']));
+  alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','blocked','done','not_done','completed']));
 exception when others then null;
 end $$;

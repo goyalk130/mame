@@ -377,6 +377,8 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
             "text-xs px-2 py-0.5 rounded-full shrink-0",
             issue.status === "completed" ? "bg-emerald-100 text-emerald-700" :
             issue.status === "done" ? "bg-green-100 text-green-700" :
+            issue.status === "not_done" ? "bg-orange-100 text-orange-700" :
+            issue.status === "blocked" ? "bg-red-100 text-red-700" :
             issue.status === "in_progress" ? "bg-blue-100 text-blue-700" :
             issue.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
             issue.status === "triage" ? "bg-purple-100 text-purple-700" :

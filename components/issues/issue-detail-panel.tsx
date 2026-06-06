@@ -288,6 +288,8 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                           "text-xs px-1.5 py-0.5 rounded-full shrink-0",
                           child.status === "completed" ? "bg-emerald-100 text-emerald-700" :
                           child.status === "done" ? "bg-green-100 text-green-700" :
+                          child.status === "not_done" ? "bg-orange-100 text-orange-700" :
+                          child.status === "blocked" ? "bg-red-100 text-red-700" :
                           child.status === "in_progress" ? "bg-blue-100 text-blue-700" :
                           child.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
                           child.status === "triage" ? "bg-purple-100 text-purple-700" :
