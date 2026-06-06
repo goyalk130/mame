@@ -22,7 +22,6 @@ export default async function BacklogPage({ params }: { params: Promise<{ key: s
     .from("issues")
     .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
     .eq("project_id", project.id)
-    .is("parent_id", null)
     .order("sort_order", { ascending: true });
 
   const { data: members } = await supabase

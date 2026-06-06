@@ -28,7 +28,6 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
     .from("issues")
     .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
     .eq("project_id", project.id)
-    .is("parent_id", null)
     .order("sort_order", { ascending: true });
 
   if (project.type === "scrum") {
