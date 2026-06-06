@@ -112,7 +112,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (types.length === 0) return;
     const { data } = await supabase
       .from("issues")
-      .select("id, key, title, type, status")
+      .select("id, key, title, type, status, parent_id")
       .eq("project_id", issue.project_id)
       .in("type", types)
       .neq("id", issue.id)
@@ -766,30 +766,42 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
               </Field>
 
               {/* Parent link (for tasks/subtasks) */}
-              {issue.type !== "epic" && validParentTypes().length > 0 && (
-                <Field label={issue.type === "subtask" ? "Parent task" : issue.type === "story" ? "Epic" : "Parent story"}>
-                  {parentIssue ? (
-                    <div className="flex items-center gap-1 text-xs group">
-                      <IssueTypeIcon type={parentIssue.type} />
-                      <button
-                        onClick={openLinkParent}
-                        className="font-mono text-gray-500 hover:text-blue-600 hover:underline"
-                      >{parentIssue.key}</button>
-                      <span className="text-gray-700 truncate flex-1">{parentIssue.title}</span>
-                      <button
-                        onClick={unlinkParent}
-                        className="text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        title="Unlink parent"
-                      ><X size={11} /></button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={openLinkParent}
-                      className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1"
-                    >
-                      <Plus size={11} /> Link parent
-                    </button>
-                  )}
+              {validParentTypes().length > 0 && (
+                <Field label={
+                  issue.type === "subtask" ? "Parent Task" :
+                  issue.type === "story" ? "Parent Epic" :
+                  issue.type === "task" || issue.type === "bug" ? "Parent Story / Epic" :
+                  "Parent"
+                }>
+                  <button
+                    onClick={openLinkParent}
+                    className={cn(
+                      "w-full flex items-center gap-1.5 h-7 px-2 rounded-md border text-xs text-left transition-colors",
+                      "border-input bg-background hover:bg-accent hover:border-gray-300",
+                      parentIssue ? "text-gray-800" : "text-gray-400"
+                    )}
+                  >
+                    {parentIssue ? (
+                      <>
+                        <IssueTypeIcon type={parentIssue.type} />
+                        <span className="font-mono text-gray-400 shrink-0">{parentIssue.key}</span>
+                        <span className="truncate flex-1">{parentIssue.title}</span>
+                        <span
+                          role="button"
+                          onClick={(e) => { e.stopPropagation(); unlinkParent(); }}
+                          className="text-gray-300 hover:text-red-400 shrink-0 ml-auto"
+                          title="Remove parent"
+                        >
+                          <X size={11} />
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={11} />
+                        <span>Set parent…</span>
+                      </>
+                    )}
+                  </button>
                 </Field>
               )}
 
