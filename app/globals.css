@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* TipTap editor */
+.ProseMirror {
+  outline: none;
+  min-height: 100px;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+.ProseMirror h1 { font-size: 1.5rem; font-weight: 700; margin: 0.5rem 0; }
+.ProseMirror h2 { font-size: 1.25rem; font-weight: 600; margin: 0.5rem 0; }
+.ProseMirror h3 { font-size: 1.1rem; font-weight: 600; margin: 0.5rem 0; }
+.ProseMirror ul { list-style: disc; padding-left: 1.5rem; }
+.ProseMirror ol { list-style: decimal; padding-left: 1.5rem; }
+.ProseMirror code { background: #f3f4f6; border-radius: 3px; padding: 0 4px; font-family: monospace; font-size: 0.875em; }
+.ProseMirror pre { background: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+.ProseMirror pre code { background: none; padding: 0; }
+.ProseMirror blockquote { border-left: 3px solid #d1d5db; padding-left: 1rem; color: #6b7280; }
+.ProseMirror strong { font-weight: 700; }
+.ProseMirror em { font-style: italic; }
+
