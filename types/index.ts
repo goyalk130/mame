@@ -1,5 +1,5 @@
 export type IssueType = "epic" | "story" | "task" | "bug" | "subtask";
-export type IssueStatus = "triage" | "todo" | "in_progress" | "in_review" | "done";
+export type IssueStatus = "triage" | "todo" | "in_progress" | "in_review" | "done" | "completed";
 export type IssuePriority = "highest" | "high" | "medium" | "low" | "lowest";
 export type ProjectType = "scrum" | "kanban";
 export type SprintStatus = "planned" | "active" | "completed";
@@ -124,6 +124,7 @@ export const STATUS_LABELS: Record<IssueStatus, string> = {
   in_progress: "In Progress",
   in_review: "In Review",
   done: "Done",
+  completed: "Completed",
 };
 
 export const PRIORITY_LABELS: Record<IssuePriority, string> = {

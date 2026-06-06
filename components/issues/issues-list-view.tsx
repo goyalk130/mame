@@ -152,6 +152,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                 <td className="px-4 py-2.5">
                   <span className={cn(
                     "text-xs px-2 py-0.5 rounded-full",
+                    issue.status === "completed" ? "bg-emerald-100 text-emerald-700" :
                     issue.status === "done" ? "bg-green-100 text-green-700" :
                     issue.status === "in_progress" ? "bg-blue-100 text-blue-700" :
                     issue.status === "in_review" ? "bg-yellow-100 text-yellow-700" :

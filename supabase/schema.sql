@@ -256,6 +256,6 @@ alter table issues alter column sort_order type bigint using sort_order::bigint;
 alter table issues alter column status set default 'triage';
 do $$ begin
   alter table issues drop constraint if exists issues_status_check;
-  alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','done']));
+  alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','done','completed']));
 exception when others then null;
 end $$;
