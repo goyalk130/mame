@@ -34,7 +34,8 @@ export default function RegisterPage() {
       toast.success("Account created! Signing you in...");
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
       if (!loginError) {
-        router.push("/");
+        await fetch("/api/setup", { method: "POST" });
+        router.push("/projects");
         router.refresh();
       } else {
         router.push("/login");

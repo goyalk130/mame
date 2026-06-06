@@ -22,7 +22,9 @@ export default function LoginPage() {
       toast.error(error.message);
       setLoading(false);
     } else {
-      router.push("/");
+      // Ensure profile row exists (handles accounts created before schema was set up)
+      await fetch("/api/setup", { method: "POST" });
+      router.push("/projects");
       router.refresh();
     }
   }
