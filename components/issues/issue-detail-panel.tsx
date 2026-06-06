@@ -42,6 +42,11 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [children, setChildren] = useState<Issue[]>([]);
   const [parentIssue, setParentIssue] = useState<Issue | null>(null);
   const [addChildOpen, setAddChildOpen] = useState(false);
+  const [linkChildOpen, setLinkChildOpen] = useState(false);
+  const [linkParentOpen, setLinkParentOpen] = useState(false);
+  const [linkSearch, setLinkSearch] = useState("");
+  const [linkOptions, setLinkOptions] = useState<Issue[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
@@ -72,6 +77,99 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       .eq("id", initialIssue.parent_id)
       .single();
     setParentIssue(data as Issue || null);
+  }
+
+  // Which types are valid parents for this issue type
+  function validParentTypes(): IssueType[] {
+    if (issue.type === "story") return ["epic"];
+    if (issue.type === "task" || issue.type === "bug") return ["story", "epic"];
+    if (issue.type === "subtask") return ["task", "story"];
+    return [];
+  }
+
+  // Which types are valid children for this issue type
+  function validChildTypes(): IssueType[] {
+    if (issue.type === "epic") return ["story", "task", "bug"];
+    if (issue.type === "story") return ["task", "bug", "subtask"];
+    if (issue.type === "task") return ["subtask"];
+    return [];
+  }
+
+  async function openLinkParent() {
+    setLinkSearch("");
+    setLinkOptions([]);
+    setLinkParentOpen(true);
+    setLinkLoading(true);
+    const types = validParentTypes();
+    if (types.length === 0) return;
+    const { data } = await supabase
+      .from("issues")
+      .select("id, key, title, type, status")
+      .eq("project_id", issue.project_id)
+      .in("type", types)
+      .neq("id", issue.id)
+      .order("key", { ascending: true });
+    setLinkOptions((data as Issue[]) || []);
+    setLinkLoading(false);
+  }
+
+  async function openLinkChild() {
+    setLinkSearch("");
+    setLinkOptions([]);
+    setLinkChildOpen(true);
+    setLinkLoading(true);
+    const types = validChildTypes();
+    if (types.length === 0) return;
+    const { data } = await supabase
+      .from("issues")
+      .select("id, key, title, type, status")
+      .eq("project_id", issue.project_id)
+      .in("type", types)
+      .neq("id", issue.id)
+      .is("parent_id", null)   // only unlinked issues
+      .order("key", { ascending: true });
+    setLinkOptions((data as Issue[]) || []);
+    setLinkLoading(false);
+  }
+
+  async function linkAsChild(child: Issue) {
+    const { error } = await supabase.from("issues").update({ parent_id: issue.id }).eq("id", child.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity").insert({ issue_id: issue.id, actor_id: userId, action: "updated", field: "child linked", old_value: null, new_value: `${child.key} ${child.title}` });
+    toast.success(`${child.key} linked as child`);
+    setLinkChildOpen(false);
+    fetchChildren();
+  }
+
+  async function linkAsParent(parent: Issue) {
+    const old = parentIssue ? `${parentIssue.key} ${parentIssue.title}` : "None";
+    const { error } = await supabase.from("issues").update({ parent_id: parent.id }).eq("id", issue.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("activity").insert({ issue_id: issue.id, actor_id: userId, action: "updated", field: "parent", old_value: old, new_value: `${parent.key} ${parent.title}` });
+    toast.success(`Linked to ${parent.key}`);
+    setLinkParentOpen(false);
+    setParentIssue(parent);
+    const updated = { ...issue, parent_id: parent.id };
+    setIssue(updated as Issue);
+    onUpdated(updated as Issue);
+  }
+
+  async function unlinkParent() {
+    if (!parentIssue) return;
+    const { error } = await supabase.from("issues").update({ parent_id: null }).eq("id", issue.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Parent unlinked");
+    setParentIssue(null);
+    const updated = { ...issue, parent_id: null };
+    setIssue(updated as Issue);
+    onUpdated(updated as Issue);
+  }
+
+  async function unlinkChild(child: Issue) {
+    const { error } = await supabase.from("issues").update({ parent_id: null }).eq("id", child.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${child.key} unlinked`);
+    setChildren((prev) => prev.filter((c) => c.id !== child.id));
   }
 
   async function fetchComments() {
@@ -249,12 +347,20 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                         </span>
                       )}
                     </h3>
-                    <button
-                      onClick={() => setAddChildOpen(true)}
-                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      <Plus size={13} /> Add {issue.type === "epic" ? "story" : "subtask"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={openLinkChild}
+                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium border border-gray-200 rounded px-2 py-0.5 hover:bg-gray-50"
+                      >
+                        Link existing
+                      </button>
+                      <button
+                        onClick={() => setAddChildOpen(true)}
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        <Plus size={13} /> Create new
+                      </button>
+                    </div>
                   </div>
 
                   {/* Progress bar */}
@@ -309,6 +415,13 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                             {child.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
                           </div>
                         )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); unlinkChild(child); }}
+                          className="ml-auto text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          title="Unlink"
+                        >
+                          <X size={12} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -564,16 +677,29 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
               </Field>
 
               {/* Parent link (for tasks/subtasks) */}
-              {issue.type !== "epic" && (
+              {issue.type !== "epic" && validParentTypes().length > 0 && (
                 <Field label={issue.type === "subtask" ? "Parent task" : issue.type === "story" ? "Epic" : "Parent story"}>
                   {parentIssue ? (
-                    <div className="flex items-center gap-1.5 text-xs">
+                    <div className="flex items-center gap-1 text-xs group">
                       <IssueTypeIcon type={parentIssue.type} />
-                      <span className="font-mono text-gray-500">{parentIssue.key}</span>
-                      <span className="text-gray-700 truncate">{parentIssue.title}</span>
+                      <button
+                        onClick={openLinkParent}
+                        className="font-mono text-gray-500 hover:text-blue-600 hover:underline"
+                      >{parentIssue.key}</button>
+                      <span className="text-gray-700 truncate flex-1">{parentIssue.title}</span>
+                      <button
+                        onClick={unlinkParent}
+                        className="text-gray-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        title="Unlink parent"
+                      ><X size={11} /></button>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400">None</span>
+                    <button
+                      onClick={openLinkParent}
+                      className="text-xs text-gray-400 hover:text-blue-600 flex items-center gap-1"
+                    >
+                      <Plus size={11} /> Link parent
+                    </button>
                   )}
                 </Field>
               )}
@@ -606,7 +732,103 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
           }}
         />
       )}
+
+      {/* Link existing child modal */}
+      {linkChildOpen && (
+        <LinkIssueModal
+          title={`Link existing issue as child of ${issue.key}`}
+          options={linkOptions}
+          loading={linkLoading}
+          search={linkSearch}
+          onSearch={setLinkSearch}
+          onSelect={linkAsChild}
+          onClose={() => setLinkChildOpen(false)}
+        />
+      )}
+
+      {/* Link parent modal */}
+      {linkParentOpen && (
+        <LinkIssueModal
+          title={`Link parent for ${issue.key}`}
+          options={linkOptions}
+          loading={linkLoading}
+          search={linkSearch}
+          onSearch={setLinkSearch}
+          onSelect={linkAsParent}
+          onClose={() => setLinkParentOpen(false)}
+        />
+      )}
     </>
+  );
+}
+
+function LinkIssueModal({
+  title, options, loading, search, onSearch, onSelect, onClose,
+}: {
+  title: string;
+  options: Issue[];
+  loading: boolean;
+  search: string;
+  onSearch: (v: string) => void;
+  onSelect: (issue: Issue) => void;
+  onClose: () => void;
+}) {
+  const filtered = options.filter((o) =>
+    !search || o.key.toLowerCase().includes(search.toLowerCase()) || o.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[60] bg-black/30" onClick={onClose} />
+      <div className="fixed z-[70] left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/3 w-full max-w-md bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-sm font-semibold text-gray-800">{title}</span>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={15} /></button>
+        </div>
+        <div className="px-4 py-2 border-b border-gray-100">
+          <Input
+            autoFocus
+            placeholder="Search by key or title..."
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="overflow-y-auto max-h-72">
+          {loading && <div className="text-xs text-gray-400 px-4 py-3">Loading...</div>}
+          {!loading && filtered.length === 0 && (
+            <div className="text-xs text-gray-400 px-4 py-3">No matching issues found</div>
+          )}
+          {filtered.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => onSelect(opt)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-50 last:border-0"
+            >
+              <IssueTypeIcon type={opt.type} />
+              <span className="text-xs font-mono text-gray-400 shrink-0">{opt.key}</span>
+              <span className="text-sm text-gray-800 flex-1 truncate">{opt.title}</span>
+              <span className={cn(
+                "text-xs px-1.5 py-0.5 rounded-full shrink-0",
+                opt.status === "done" ? "bg-green-100 text-green-700" :
+                opt.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                opt.status === "triage" ? "bg-purple-100 text-purple-700" :
+                "bg-gray-100 text-gray-500"
+              )}>{STATUS_LABELS[opt.status]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-500 mb-1">{label}</div>
+      {children}
+    </div>
   );
 }
 
