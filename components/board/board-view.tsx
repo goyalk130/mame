@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: { id: IssueStatus; color: string }[] = [
+  { id: "triage", color: "bg-purple-400" },
   { id: "todo", color: "bg-gray-400" },
   { id: "in_progress", color: "bg-blue-400" },
   { id: "in_review", color: "bg-yellow-400" },

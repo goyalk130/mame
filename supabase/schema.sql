@@ -61,7 +61,7 @@ create table if not exists issues (
   title text not null,
   description text,
   type text not null default 'task' check (type in ('epic', 'story', 'task', 'bug', 'subtask')),
-  status text not null default 'todo' check (status in ('todo', 'in_progress', 'in_review', 'done')),
+  status text not null default 'triage' check (status in ('triage', 'todo', 'in_progress', 'in_review', 'done')),
   priority text not null default 'medium' check (priority in ('highest', 'high', 'medium', 'low', 'lowest')),
   project_id uuid references projects(id) on delete cascade not null,
   sprint_id uuid references sprints(id) on delete set null,
@@ -253,3 +253,9 @@ create policy "activity_insert" on activity for insert with check (
 alter table issues add column if not exists virtual_assignee_id uuid references virtual_members(id) on delete set null;
 alter table issues add column if not exists start_date date;
 alter table issues alter column sort_order type bigint using sort_order::bigint;
+alter table issues alter column status set default 'triage';
+do $$ begin
+  alter table issues drop constraint if exists issues_status_check;
+  alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','done']));
+exception when others then null;
+end $$;

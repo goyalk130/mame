@@ -289,6 +289,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                           child.status === "done" ? "bg-green-100 text-green-700" :
                           child.status === "in_progress" ? "bg-blue-100 text-blue-700" :
                           child.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
+                          child.status === "triage" ? "bg-purple-100 text-purple-700" :
                           "bg-gray-100 text-gray-500"
                         )}>
                           {STATUS_LABELS[child.status]}
