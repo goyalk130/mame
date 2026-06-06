@@ -127,7 +127,6 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       .eq("project_id", issue.project_id)
       .in("type", types)
       .neq("id", issue.id)
-      .is("parent_id", null)   // only unlinked issues
       .order("key", { ascending: true });
     setLinkOptions((data as Issue[]) || []);
     setLinkLoading(false);
