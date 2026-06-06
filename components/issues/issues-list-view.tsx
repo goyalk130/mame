@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Filter } from "lucide-react";
 import type { Issue, Project, IssueType, IssuePriority, IssueStatus, VirtualMember } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
@@ -30,6 +30,34 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
   const [filterAssignee, setFilterAssignee] = useState<string>("all");
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  function openIssue(issue: Issue) {
+    setSelectedIssue(issue);
+    const url = new URL(window.location.href);
+    url.searchParams.set("issue", issue.key);
+    window.history.pushState({ issueKey: issue.key }, "", url.toString());
+  }
+
+  function closeIssue() {
+    setSelectedIssue(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("issue");
+    window.history.pushState({}, "", url.toString());
+  }
+
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get("issue");
+    if (key) {
+      const found = initialIssues.find((i) => i.key === key);
+      if (found) setSelectedIssue(found);
+    }
+    function onPopState() {
+      const k = new URLSearchParams(window.location.search).get("issue");
+      setSelectedIssue(k ? (issues.find((i) => i.key === k) ?? null) : null);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const filtered = useMemo(() => {
     return issues.filter((i) => {
@@ -137,7 +165,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
             {filtered.map((issue) => (
               <tr
                 key={issue.id}
-                onClick={() => setSelectedIssue(issue)}
+                onClick={() => openIssue(issue)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
                 <td className="px-4 py-2.5">
@@ -222,9 +250,10 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
           members={members}
           virtualMembers={virtualMembers}
           userId={userId}
-          onClose={() => setSelectedIssue(null)}
+          onClose={closeIssue}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onNavigate={openIssue}
         />
       )}
     </div>

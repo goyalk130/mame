@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
@@ -33,6 +33,34 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  function openIssue(issue: Issue) {
+    setSelectedIssue(issue);
+    const url = new URL(window.location.href);
+    url.searchParams.set("issue", issue.key);
+    window.history.pushState({ issueKey: issue.key }, "", url.toString());
+  }
+
+  function closeIssue() {
+    setSelectedIssue(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("issue");
+    window.history.pushState({}, "", url.toString());
+  }
+
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get("issue");
+    if (key) {
+      const found = initialIssues.find((i) => i.key === key);
+      if (found) setSelectedIssue(found);
+    }
+    function onPopState() {
+      const k = new URLSearchParams(window.location.search).get("issue");
+      setSelectedIssue(k ? (issues.find((i) => i.key === k) ?? null) : null);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [createSprintOpen, setCreateSprintOpen] = useState(false);
   const [createIssueSprintId, setCreateIssueSprintId] = useState<string | "backlog" | null>(null);
   const [sprintForm, setSprintForm] = useState({ name: "", goal: "", start_date: "", end_date: "" });
@@ -234,7 +262,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
                             key={issue.id}
                             issue={issue}
                             index={idx}
-                            onSelect={setSelectedIssue}
+                            onSelect={openIssue}
                           />
                         ))}
                       </div>
@@ -284,7 +312,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
                         key={issue.id}
                         issue={issue}
                         index={idx}
-                        onSelect={setSelectedIssue}
+                        onSelect={openIssue}
                       />
                     ))}
                   </div>
@@ -351,9 +379,10 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
           members={members}
           virtualMembers={virtualMembers}
           userId={userId}
-          onClose={() => setSelectedIssue(null)}
+          onClose={closeIssue}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onNavigate={openIssue}
         />
       )}
     </div>

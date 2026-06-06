@@ -26,9 +26,10 @@ interface Props {
   onClose: () => void;
   onUpdated: (issue: Issue) => void;
   onDeleted: (id: string) => void;
+  onNavigate?: (issue: Issue) => void;
 }
 
-export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], userId, onClose, onUpdated, onDeleted }: Props) {
+export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], userId, onClose, onUpdated, onDeleted, onNavigate }: Props) {
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -271,7 +272,18 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-2">
             <IssueTypeIcon type={issue.type} />
-            <span className="text-sm font-mono text-gray-500">{issue.key}</span>
+            <button
+              className="text-sm font-mono text-gray-500 hover:text-blue-600 hover:underline transition-colors"
+              title="Copy link to this ticket"
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set("issue", issue.key);
+                navigator.clipboard.writeText(url.toString());
+                toast.success("Link copied!");
+              }}
+            >
+              {issue.key}
+            </button>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={handleDelete} className="text-gray-400 hover:text-red-500">
@@ -293,13 +305,19 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                 <div className="flex items-center gap-1 text-xs text-gray-400 mb-3 -mt-1">
                   <IssueTypeIcon type={parentIssue.type} />
                   <button
-                    className="hover:text-blue-600 hover:underline font-mono"
-                    onClick={() => onUpdated({ ...issue, parent_id: parentIssue.id } as Issue)}
+                    className="hover:text-blue-600 hover:underline font-mono cursor-pointer"
+                    onClick={() => onNavigate?.(parentIssue as Issue)}
+                    title={`Open ${parentIssue.key}: ${parentIssue.title}`}
                   >
                     {parentIssue.key}
                   </button>
                   <ChevronRight size={12} />
-                  <span className="text-gray-500 truncate max-w-[200px]">{parentIssue.title}</span>
+                  <button
+                    className="text-gray-500 truncate max-w-[200px] hover:text-blue-600 hover:underline text-left cursor-pointer"
+                    onClick={() => onNavigate?.(parentIssue as Issue)}
+                  >
+                    {parentIssue.title}
+                  </button>
                 </div>
               )}
 
@@ -381,7 +399,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                       <div
                         key={child.id}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 group cursor-pointer"
-                        onClick={() => onUpdated(child)}
+                        onClick={() => onNavigate?.(child)}
                       >
                         {child.status === "done"
                           ? <CheckCircle2 size={14} className="text-green-500 shrink-0" />

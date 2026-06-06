@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -54,6 +54,42 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   const [search, setSearch] = useState("");
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  // URL-based navigation
+  function openIssue(issue: Issue) {
+    setSelectedIssue(issue);
+    const url = new URL(window.location.href);
+    url.searchParams.set("issue", issue.key);
+    window.history.pushState({ issueKey: issue.key }, "", url.toString());
+  }
+
+  function closeIssue() {
+    setSelectedIssue(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("issue");
+    window.history.pushState({}, "", url.toString());
+  }
+
+  useEffect(() => {
+    // Open issue from URL on mount
+    const key = new URLSearchParams(window.location.search).get("issue");
+    if (key) {
+      const found = initialIssues.find((i) => i.key === key);
+      if (found) setSelectedIssue(found);
+    }
+    // Handle browser back/forward
+    function onPopState() {
+      const k = new URLSearchParams(window.location.search).get("issue");
+      if (k) {
+        const found = issues.find((i) => i.key === k);
+        if (found) setSelectedIssue(found);
+      } else {
+        setSelectedIssue(null);
+      }
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Auto-scroll refs
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -246,7 +282,7 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
                                   >
                                     <IssueCard
                                       issue={issue}
-                                      onClick={() => setSelectedIssue(issue)}
+                                      onClick={() => openIssue(issue)}
                                     />
                                   </div>
                                 )}
@@ -287,9 +323,10 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
           members={members}
           virtualMembers={virtualMembers}
           userId={userId}
-          onClose={() => setSelectedIssue(null)}
+          onClose={closeIssue}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onNavigate={openIssue}
         />
       )}
     </div>
