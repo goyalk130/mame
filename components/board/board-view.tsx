@@ -71,6 +71,19 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
     if (error) {
       toast.error("Failed to update issue");
       setIssues((prev) => prev.map((i) => i.id === draggableId ? issue : i));
+      return;
+    }
+
+    // Log activity only if status actually changed
+    if (issue.status !== newStatus) {
+      await supabase.from("activity").insert({
+        issue_id: draggableId,
+        actor_id: userId,
+        action: "updated",
+        field: "status",
+        old_value: STATUS_LABELS[issue.status],
+        new_value: STATUS_LABELS[newStatus],
+      });
     }
   }
 

@@ -57,6 +57,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
       prev.map((i) => (i.id === draggableId ? { ...i, sprint_id: targetSprintId } : i))
     );
 
+    const issue = issues.find((i) => i.id === draggableId);
     const { error } = await supabase
       .from("issues")
       .update({ sprint_id: targetSprintId })
@@ -64,11 +65,25 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
 
     if (error) {
       toast.error("Failed to move issue");
-      // Revert
       const originalSprintId = source.droppableId === "backlog" ? null : source.droppableId;
       setIssues((prev) =>
         prev.map((i) => (i.id === draggableId ? { ...i, sprint_id: originalSprintId } : i))
       );
+      return;
+    }
+
+    // Log activity
+    if (issue && issue.sprint_id !== targetSprintId) {
+      const oldSprint = sprints.find((s) => s.id === issue.sprint_id);
+      const newSprint = sprints.find((s) => s.id === targetSprintId);
+      await supabase.from("activity").insert({
+        issue_id: draggableId,
+        actor_id: userId,
+        action: "updated",
+        field: "sprint",
+        old_value: oldSprint ? oldSprint.name : "Backlog",
+        new_value: newSprint ? newSprint.name : "Backlog",
+      });
     }
   }
 
