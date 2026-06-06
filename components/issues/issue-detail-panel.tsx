@@ -59,7 +59,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     fetchComments();
     fetchActivity();
     fetchChildren();
-    fetchParent();
+    fetchParentFresh();  // always fetch from DB — don't trust stale client state
   }, [initialIssue.id]);
 
   async function fetchChildren() {
@@ -71,12 +71,18 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     setChildren((data as Issue[]) || []);
   }
 
-  async function fetchParent() {
-    if (!initialIssue.parent_id) { setParentIssue(null); return; }
+  // Always fetch current parent_id from DB first (ignores stale client state)
+  async function fetchParentFresh() {
+    const { data: fresh } = await supabase
+      .from("issues")
+      .select("parent_id")
+      .eq("id", initialIssue.id)
+      .single();
+    if (!fresh?.parent_id) { setParentIssue(null); return; }
     const { data } = await supabase
       .from("issues")
       .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
-      .eq("id", initialIssue.parent_id)
+      .eq("id", fresh.parent_id)
       .single();
     setParentIssue(data as Issue || null);
   }
@@ -124,7 +130,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (types.length === 0) return;
     const { data } = await supabase
       .from("issues")
-      .select("id, key, title, type, status")
+      .select("id, key, title, type, status, parent_id")
       .eq("project_id", issue.project_id)
       .in("type", types)
       .neq("id", issue.id)
@@ -134,22 +140,48 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   }
 
   async function linkAsChild(child: Issue) {
+    // Check if child already has a different parent — it will be re-parented
+    const { data: freshChild } = await supabase
+      .from("issues").select("parent_id").eq("id", child.id).single();
+    const oldParentId = freshChild?.parent_id;
+
     const { error } = await supabase.from("issues").update({ parent_id: issue.id }).eq("id", child.id);
     if (error) { toast.error(error.message); return; }
-    await supabase.from("activity").insert({ issue_id: issue.id, actor_id: userId, action: "updated", field: "child linked", old_value: null, new_value: `${child.key} ${child.title}` });
-    toast.success(`${child.key} linked as child`);
+
+    // Log on the child too so its activity tab is accurate
+    await supabase.from("activity").insert([
+      { issue_id: issue.id, actor_id: userId, action: "updated", field: "child linked", old_value: oldParentId ? "another issue" : null, new_value: `${child.key} ${child.title}` },
+      { issue_id: child.id, actor_id: userId, action: "updated", field: "parent", old_value: oldParentId ? "previous parent" : null, new_value: `${issue.key} ${issue.title}` },
+    ]);
+
+    if (oldParentId && oldParentId !== issue.id) {
+      toast.success(`${child.key} moved to ${issue.key} (removed from previous parent)`);
+    } else {
+      toast.success(`${child.key} linked as child`);
+    }
     setLinkChildOpen(false);
     fetchChildren();
   }
 
   async function linkAsParent(parent: Issue) {
-    const old = parentIssue ? `${parentIssue.key} ${parentIssue.title}` : "None";
+    // Get fresh current parent from DB
+    const { data: freshSelf } = await supabase
+      .from("issues").select("parent_id").eq("id", issue.id).single();
+    const oldParentId = freshSelf?.parent_id;
+
     const { error } = await supabase.from("issues").update({ parent_id: parent.id }).eq("id", issue.id);
     if (error) { toast.error(error.message); return; }
-    await supabase.from("activity").insert({ issue_id: issue.id, actor_id: userId, action: "updated", field: "parent", old_value: old, new_value: `${parent.key} ${parent.title}` });
+
+    await supabase.from("activity").insert({
+      issue_id: issue.id, actor_id: userId, action: "updated", field: "parent",
+      old_value: oldParentId ? "previous parent" : "None",
+      new_value: `${parent.key} ${parent.title}`,
+    });
+
     toast.success(`Linked to ${parent.key}`);
     setLinkParentOpen(false);
-    setParentIssue(parent);
+    // Re-fetch parent fresh from DB to ensure consistency
+    await fetchParentFresh();
     const updated = { ...issue, parent_id: parent.id };
     setIssue(updated as Issue);
     onUpdated(updated as Issue);
@@ -159,6 +191,10 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (!parentIssue) return;
     const { error } = await supabase.from("issues").update({ parent_id: null }).eq("id", issue.id);
     if (error) { toast.error(error.message); return; }
+    await supabase.from("activity").insert({
+      issue_id: issue.id, actor_id: userId, action: "updated", field: "parent",
+      old_value: `${parentIssue.key} ${parentIssue.title}`, new_value: "None",
+    });
     toast.success("Parent unlinked");
     setParentIssue(null);
     const updated = { ...issue, parent_id: null };
@@ -856,18 +892,25 @@ function LinkIssueModal({
             <button
               key={opt.id}
               onClick={() => onSelect(opt)}
-              className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-50 last:border-0"
+              className="w-full flex flex-col px-4 py-2.5 hover:bg-gray-50 text-left border-b border-gray-50 last:border-0"
             >
-              <IssueTypeIcon type={opt.type} />
-              <span className="text-xs font-mono text-gray-400 shrink-0">{opt.key}</span>
-              <span className="text-sm text-gray-800 flex-1 truncate">{opt.title}</span>
-              <span className={cn(
-                "text-xs px-1.5 py-0.5 rounded-full shrink-0",
-                opt.status === "done" ? "bg-green-100 text-green-700" :
-                opt.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                opt.status === "triage" ? "bg-purple-100 text-purple-700" :
-                "bg-gray-100 text-gray-500"
-              )}>{STATUS_LABELS[opt.status]}</span>
+              <div className="flex items-center gap-2 w-full">
+                <IssueTypeIcon type={opt.type} />
+                <span className="text-xs font-mono text-gray-400 shrink-0">{opt.key}</span>
+                <span className="text-sm text-gray-800 flex-1 truncate">{opt.title}</span>
+                <span className={cn(
+                  "text-xs px-1.5 py-0.5 rounded-full shrink-0",
+                  opt.status === "done" ? "bg-green-100 text-green-700" :
+                  opt.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                  opt.status === "triage" ? "bg-purple-100 text-purple-700" :
+                  "bg-gray-100 text-gray-500"
+                )}>{STATUS_LABELS[opt.status]}</span>
+              </div>
+              {opt.parent_id && (
+                <span className="text-xs text-orange-500 mt-0.5 pl-5">
+                  ⚠ Already has a parent — will be re-parented
+                </span>
+              )}
             </button>
           ))}
         </div>
