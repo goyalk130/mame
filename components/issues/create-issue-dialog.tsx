@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,22 @@ export function CreateIssueDialog({
   const [storyPoints, setStoryPoints] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [selectedParentId, setSelectedParentId] = useState<string>(parentId || "none");
+  const [parentOptions, setParentOptions] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // When type changes, load valid parent options
+  useEffect(() => {
+    if (parentId) return; // already set externally
+    const supabase = createClient();
+    let parentType: IssueType | null = null;
+    if (type === "story") parentType = "epic";
+    else if (type === "task" || type === "bug") parentType = "story";
+    else if (type === "subtask") parentType = "task";
+    if (!parentType) { setParentOptions([]); setSelectedParentId("none"); return; }
+    supabase.from("issues").select("id, key, title, type").eq("project_id", projectId).eq("type", parentType).order("created_at", { ascending: false }).limit(50)
+      .then(({ data }) => setParentOptions((data as Issue[]) || []));
+  }, [type, projectId, parentId]);
 
   // assigneeId format: "real:uuid" | "virtual:uuid" | "unassigned"
   function parseAssignee(val: string) {
@@ -66,7 +81,7 @@ export function CreateIssueDialog({
         sprint_id: sprintId,
         ...assigneeFields,
         reporter_id: userId,
-        parent_id: parentId || null,
+        parent_id: parentId || (selectedParentId !== "none" ? selectedParentId : null),
         story_points: storyPoints ? parseInt(storyPoints) : null,
         start_date: startDate || null,
         due_date: dueDate || null,
@@ -83,7 +98,7 @@ export function CreateIssueDialog({
 
     toast.success(`${issueKey} created`);
     onCreated(data as Issue);
-    setTitle(""); setType("task"); setPriority("medium"); setAssigneeId("unassigned"); setStoryPoints(""); setStartDate(""); setDueDate("");
+    setTitle(""); setType("task"); setPriority("medium"); setAssigneeId("unassigned"); setStoryPoints(""); setStartDate(""); setDueDate(""); setSelectedParentId("none");
     setLoading(false);
     onClose();
   }
@@ -146,6 +161,26 @@ export function CreateIssueDialog({
               />
             </div>
           </div>
+          {/* Parent issue picker — shown when relevant parent types exist */}
+          {!parentId && parentOptions.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {type === "story" ? "Link to Epic" : type === "subtask" ? "Parent Task" : "Parent Story"}
+              </label>
+              <Select value={selectedParentId} onValueChange={setSelectedParentId}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="None (standalone)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (standalone)</SelectItem>
+                  {parentOptions.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="font-mono text-xs text-gray-400 mr-1">{p.key}</span> {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>

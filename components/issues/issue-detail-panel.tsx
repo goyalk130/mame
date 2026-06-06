@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { X, Trash2, ExternalLink, Plus } from "lucide-react";
+import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
@@ -11,6 +11,7 @@ import { IssueTypeIcon, PriorityIcon } from "@/components/ui/issue-icons";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { RichTextEditor } from "./rich-text-editor";
+import { CreateIssueDialog } from "./create-issue-dialog";
 import { cn } from "@/lib/utils";
 import { getTimeStatus, getTimeInfo } from "@/lib/time-status";
 import toast from "react-hot-toast";
@@ -38,6 +39,9 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [addingComment, setAddingComment] = useState(false);
   const [tab, setTab] = useState<"comments" | "activity">("comments");
   const [loading, setLoading] = useState(false);
+  const [children, setChildren] = useState<Issue[]>([]);
+  const [parentIssue, setParentIssue] = useState<Issue | null>(null);
+  const [addChildOpen, setAddChildOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
@@ -47,7 +51,28 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     setTitleValue(initialIssue.title);
     fetchComments();
     fetchActivity();
+    fetchChildren();
+    fetchParent();
   }, [initialIssue.id]);
+
+  async function fetchChildren() {
+    const { data } = await supabase
+      .from("issues")
+      .select("*, assignee:profiles!assignee_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
+      .eq("parent_id", initialIssue.id)
+      .order("created_at", { ascending: true });
+    setChildren((data as Issue[]) || []);
+  }
+
+  async function fetchParent() {
+    if (!initialIssue.parent_id) { setParentIssue(null); return; }
+    const { data } = await supabase
+      .from("issues")
+      .select("id, key, title, type, status")
+      .eq("id", initialIssue.parent_id)
+      .single();
+    setParentIssue(data as Issue || null);
+  }
 
   async function fetchComments() {
     const { data } = await supabase
@@ -164,6 +189,22 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
           <div className="flex gap-0">
             {/* Main content */}
             <div className="flex-1 px-6 py-5 min-w-0">
+
+              {/* Parent breadcrumb */}
+              {parentIssue && (
+                <div className="flex items-center gap-1 text-xs text-gray-400 mb-3 -mt-1">
+                  <IssueTypeIcon type={parentIssue.type} />
+                  <button
+                    className="hover:text-blue-600 hover:underline font-mono"
+                    onClick={() => onUpdated({ ...issue, parent_id: parentIssue.id } as Issue)}
+                  >
+                    {parentIssue.key}
+                  </button>
+                  <ChevronRight size={12} />
+                  <span className="text-gray-500 truncate max-w-[200px]">{parentIssue.title}</span>
+                </div>
+              )}
+
               {/* Title */}
               {editingTitle ? (
                 <div className="mb-4">
@@ -195,6 +236,80 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                   placeholder="Add a description..."
                 />
               </div>
+
+              {/* Child issues */}
+              {issue.type !== "subtask" && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-gray-600">
+                      {issue.type === "epic" ? "Stories" : issue.type === "story" ? "Tasks & Subtasks" : "Subtasks"}
+                      {children.length > 0 && (
+                        <span className="ml-1.5 text-gray-400 font-normal">
+                          ({children.filter(c => c.status === "done").length}/{children.length} done)
+                        </span>
+                      )}
+                    </h3>
+                    <button
+                      onClick={() => setAddChildOpen(true)}
+                      className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <Plus size={13} /> Add {issue.type === "epic" ? "story" : "subtask"}
+                    </button>
+                  </div>
+
+                  {/* Progress bar */}
+                  {children.length > 0 && (
+                    <div className="mb-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-400 rounded-full transition-all"
+                        style={{ width: `${(children.filter(c => c.status === "done").length / children.length) * 100}%` }}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    {children.length === 0 && (
+                      <p className="text-xs text-gray-400 py-2">No child issues yet. Click "Add" to create one.</p>
+                    )}
+                    {children.map((child) => (
+                      <div
+                        key={child.id}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 group cursor-pointer"
+                        onClick={() => onUpdated(child)}
+                      >
+                        {child.status === "done"
+                          ? <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                          : <Circle size={14} className="text-gray-300 shrink-0" />
+                        }
+                        <IssueTypeIcon type={child.type} />
+                        <span className="text-xs font-mono text-gray-400 shrink-0">{child.key}</span>
+                        <span className="text-sm text-gray-700 flex-1 truncate">{child.title}</span>
+                        <span className={cn(
+                          "text-xs px-1.5 py-0.5 rounded-full shrink-0",
+                          child.status === "done" ? "bg-green-100 text-green-700" :
+                          child.status === "in_progress" ? "bg-blue-100 text-blue-700" :
+                          child.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-gray-100 text-gray-500"
+                        )}>
+                          {STATUS_LABELS[child.status]}
+                        </span>
+                        {child.assignee && (
+                          <span className="text-xs text-gray-400 shrink-0 hidden group-hover:block">
+                            {child.assignee.full_name || child.assignee.email}
+                          </span>
+                        )}
+                        {!child.assignee && child.virtual_assignee && (
+                          <div className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-white text-[7px] font-bold"
+                            style={{ background: child.virtual_assignee.color }}
+                            title={child.virtual_assignee.name}>
+                            {child.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Comments / Activity tabs */}
               <div>
@@ -444,6 +559,21 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                 />
               </Field>
 
+              {/* Parent link (for tasks/subtasks) */}
+              {issue.type !== "epic" && (
+                <Field label={issue.type === "subtask" ? "Parent task" : issue.type === "story" ? "Epic" : "Parent story"}>
+                  {parentIssue ? (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <IssueTypeIcon type={parentIssue.type} />
+                      <span className="font-mono text-gray-500">{parentIssue.key}</span>
+                      <span className="text-gray-700 truncate">{parentIssue.title}</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">None</span>
+                  )}
+                </Field>
+              )}
+
               <div className="pt-2 border-t border-gray-200 space-y-1 text-xs text-gray-400">
                 <div>Created {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}</div>
                 <div>Updated {formatDistanceToNow(new Date(issue.updated_at), { addSuffix: true })}</div>
@@ -452,6 +582,26 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
           </div>
         </div>
       </div>
+
+      {/* Add child issue dialog */}
+      {addChildOpen && (
+        <CreateIssueDialog
+          open={addChildOpen}
+          onClose={() => setAddChildOpen(false)}
+          projectId={issue.project_id}
+          projectKey={issue.key.split("-")[0]}
+          defaultStatus="todo"
+          sprintId={issue.sprint_id}
+          members={members}
+          virtualMembers={virtualMembers}
+          userId={userId}
+          parentId={issue.id}
+          onCreated={(child) => {
+            setChildren((prev) => [...prev, child]);
+            setAddChildOpen(false);
+          }}
+        />
+      )}
     </>
   );
 }
