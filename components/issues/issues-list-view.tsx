@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { Plus, Search, Filter } from "lucide-react";
-import type { Issue, Project, IssueType, IssuePriority, IssueStatus } from "@/types";
+import type { Issue, Project, IssueType, IssuePriority, IssueStatus, VirtualMember } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,10 +17,11 @@ interface Props {
   project: Project;
   initialIssues: Issue[];
   members: any[];
+  virtualMembers?: VirtualMember[];
   userId: string;
 }
 
-export function IssuesListView({ project, initialIssues, members, userId }: Props) {
+export function IssuesListView({ project, initialIssues, members, virtualMembers = [], userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -175,6 +176,13 @@ export function IssuesListView({ project, initialIssues, members, userId }: Prop
                       </Avatar>
                       <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.assignee.full_name || issue.assignee.email}</span>
                     </div>
+                  ) : issue.virtual_assignee ? (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: issue.virtual_assignee.color }}>
+                        {issue.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                      </div>
+                      <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.virtual_assignee.name}</span>
+                    </div>
                   ) : (
                     <span className="text-xs text-gray-400">Unassigned</span>
                   )}
@@ -197,6 +205,7 @@ export function IssuesListView({ project, initialIssues, members, userId }: Prop
           defaultStatus="todo"
           sprintId={null}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onCreated={handleIssueCreated}
         />
@@ -207,6 +216,7 @@ export function IssuesListView({ project, initialIssues, members, userId }: Prop
           issue={selectedIssue}
           project={project}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onClose={() => setSelectedIssue(null)}
           onUpdated={handleIssueUpdated}

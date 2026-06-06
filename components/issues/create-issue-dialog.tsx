@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, IssueStatus, IssueType, IssuePriority } from "@/types";
+import type { Issue, IssueStatus, IssueType, IssuePriority, VirtualMember } from "@/types";
 import { TYPE_LABELS, PRIORITY_LABELS, STATUS_LABELS } from "@/types";
 import toast from "react-hot-toast";
 
@@ -17,13 +17,14 @@ interface Props {
   defaultStatus: IssueStatus;
   sprintId: string | null;
   members: any[];
+  virtualMembers?: VirtualMember[];
   userId: string;
   onCreated: (issue: Issue) => void;
   parentId?: string;
 }
 
 export function CreateIssueDialog({
-  open, onClose, projectId, projectKey, defaultStatus, sprintId, members, userId, onCreated, parentId
+  open, onClose, projectId, projectKey, defaultStatus, sprintId, members, virtualMembers = [], userId, onCreated, parentId
 }: Props) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<IssueType>("task");
@@ -33,16 +34,23 @@ export function CreateIssueDialog({
   const [storyPoints, setStoryPoints] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // assigneeId format: "real:uuid" | "virtual:uuid" | "unassigned"
+  function parseAssignee(val: string) {
+    if (val === "unassigned") return { assignee_id: null, virtual_assignee_id: null };
+    const [type, id] = val.split(":");
+    if (type === "virtual") return { assignee_id: null, virtual_assignee_id: id };
+    return { assignee_id: id, virtual_assignee_id: null };
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
     setLoading(true);
 
     const supabase = createClient();
-
-    // Get next key number
     const { data: keyNum } = await supabase.rpc("get_next_issue_key", { p_project_id: projectId });
     const issueKey = `${projectKey}-${keyNum}`;
+    const assigneeFields = parseAssignee(assigneeId);
 
     const { data, error } = await supabase
       .from("issues")
@@ -54,13 +62,13 @@ export function CreateIssueDialog({
         priority,
         project_id: projectId,
         sprint_id: sprintId,
-        assignee_id: assigneeId === "unassigned" ? null : assigneeId,
+        ...assigneeFields,
         reporter_id: userId,
         parent_id: parentId || null,
         story_points: storyPoints ? parseInt(storyPoints) : null,
         sort_order: Date.now(),
       })
-      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*)")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
       .single();
 
     if (error) {
@@ -140,9 +148,23 @@ export function CreateIssueDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
+                {members.length > 0 && (
+                  <div className="px-2 py-1 text-xs text-gray-400 font-medium">Team members</div>
+                )}
                 {members.map((m: any) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.profile?.full_name || m.profile?.email || m.user_id}
+                  <SelectItem key={m.user_id} value={`real:${m.user_id}`}>
+                    {m.profile?.full_name || m.profile?.email}
+                  </SelectItem>
+                ))}
+                {virtualMembers.length > 0 && (
+                  <div className="px-2 py-1 text-xs text-gray-400 font-medium">Virtual members</div>
+                )}
+                {virtualMembers.map((vm) => (
+                  <SelectItem key={vm.id} value={`virtual:${vm.id}`}>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: vm.color }} />
+                      {vm.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

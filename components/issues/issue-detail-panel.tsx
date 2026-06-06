@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Trash2, ExternalLink, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType } from "@/types";
+import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,13 +19,14 @@ interface Props {
   issue: Issue;
   project: Project;
   members: any[];
+  virtualMembers?: VirtualMember[];
   userId: string;
   onClose: () => void;
   onUpdated: (issue: Issue) => void;
   onDeleted: (id: string) => void;
 }
 
-export function IssueDetailPanel({ issue: initialIssue, project, members, userId, onClose, onUpdated, onDeleted }: Props) {
+export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], userId, onClose, onUpdated, onDeleted }: Props) {
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -323,19 +324,43 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, userId
 
               <Field label="Assignee">
                 <Select
-                  value={issue.assignee_id || "unassigned"}
+                  value={
+                    issue.virtual_assignee_id
+                      ? `virtual:${issue.virtual_assignee_id}`
+                      : issue.assignee_id
+                      ? `real:${issue.assignee_id}`
+                      : "unassigned"
+                  }
                   onValueChange={(v) => {
-                    const val = v === "unassigned" ? null : v;
-                    const m = members.find((m: any) => m.user_id === val);
-                    updateField("assignee_id", val, issue.assignee?.full_name || "Unassigned", m?.profile?.full_name || "Unassigned");
+                    if (v === "unassigned") {
+                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                    } else if (v.startsWith("virtual:")) {
+                      const vmId = v.replace("virtual:", "");
+                      const vm = virtualMembers.find(m => m.id === vmId);
+                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: vmId, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                    } else {
+                      const userId = v.replace("real:", "");
+                      const m = members.find((m: any) => m.user_id === userId);
+                      supabase.from("issues").update({ assignee_id: userId, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                    }
                   }}
                 >
                   <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {members.length > 0 && <div className="px-2 py-1 text-xs text-gray-400 font-medium">Team members</div>}
                     {members.map((m: any) => (
-                      <SelectItem key={m.user_id} value={m.user_id}>
+                      <SelectItem key={m.user_id} value={`real:${m.user_id}`}>
                         {m.profile?.full_name || m.profile?.email}
+                      </SelectItem>
+                    ))}
+                    {virtualMembers.length > 0 && <div className="px-2 py-1 text-xs text-gray-400 font-medium">Virtual members</div>}
+                    {virtualMembers.map((vm) => (
+                      <SelectItem key={vm.id} value={`virtual:${vm.id}`}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: vm.color }} />
+                          {vm.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

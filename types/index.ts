@@ -73,9 +73,20 @@ export interface Issue {
   updated_at: string;
   assignee?: Profile | null;
   reporter?: Profile | null;
+  virtual_assignee_id?: string | null;
+  virtual_assignee?: VirtualMember | null;
   labels?: Label[];
   subtasks?: Issue[];
   parent?: Issue | null;
+}
+
+export interface VirtualMember {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string;
+  created_by: string;
+  created_at: string;
 }
 
 export interface Comment {

@@ -28,10 +28,18 @@ export function IssueCard({ issue, onClick }: Props) {
           <Avatar className="w-5 h-5">
             <AvatarImage src={issue.assignee.avatar_url || undefined} />
             <AvatarFallback className="text-[8px]">
-              {(issue.assignee.full_name || issue.assignee.email)
-                .split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+              {(issue.assignee.full_name || issue.assignee.email).split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
             </AvatarFallback>
           </Avatar>
+        )}
+        {!issue.assignee && issue.virtual_assignee && (
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+            style={{ background: issue.virtual_assignee.color }}
+            title={issue.virtual_assignee.name}
+          >
+            {issue.virtual_assignee.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+          </div>
         )}
       </div>
       {issue.story_points != null && (

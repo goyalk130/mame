@@ -40,17 +40,31 @@ export function ProjectsHome({ projects: initial, userId }: Props) {
     if (!name.trim() || !key.trim()) return;
     setLoading(true);
     const supabase = createClient();
-    const { data, error } = await supabase
+
+    // Try the key as-is; if duplicate, append a random 2-char suffix and retry once
+    let finalKey = key.trim().toUpperCase();
+    let { data, error } = await supabase
       .from("projects")
-      .insert({ name: name.trim(), key: key.trim().toUpperCase(), description: description.trim() || null, type, owner_id: userId })
+      .insert({ name: name.trim(), key: finalKey, description: description.trim() || null, type, owner_id: userId })
       .select()
       .single();
+
+    if (error?.code === "23505") {
+      // Unique key conflict — append random suffix and retry
+      finalKey = finalKey.slice(0, 4) + Math.random().toString(36).slice(2, 4).toUpperCase();
+      ({ data, error } = await supabase
+        .from("projects")
+        .insert({ name: name.trim(), key: finalKey, description: description.trim() || null, type, owner_id: userId })
+        .select()
+        .single());
+    }
+
     if (error) {
-      toast.error(error.message);
+      toast.error(error.code === "23505" ? `Key "${finalKey}" is already taken — please choose a different key` : error.message);
       setLoading(false);
       return;
     }
-    // Add owner as admin member
+
     await supabase.from("project_members").insert({ project_id: data.id, user_id: userId, role: "admin" });
     toast.success("Project created!");
     setProjects((prev) => [data, ...prev]);

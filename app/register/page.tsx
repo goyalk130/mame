@@ -22,7 +22,7 @@ export default function RegisterPage() {
     }
     setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: name } },
@@ -30,17 +30,20 @@ export default function RegisterPage() {
     if (error) {
       toast.error(error.message);
       setLoading(false);
-    } else {
-      toast.success("Account created! Signing you in...");
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-      if (!loginError) {
-        await fetch("/api/setup", { method: "POST" });
-        router.push("/projects");
-        router.refresh();
-      } else {
-        router.push("/login");
-      }
+      return;
     }
+    // Auto-confirm is enabled — sign in immediately
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginError) {
+      // Fallback: user created but couldn't auto-login (e.g. email not yet confirmed)
+      toast.success("Account created! Please sign in.");
+      router.push("/login");
+      return;
+    }
+    await fetch("/api/setup", { method: "POST" });
+    toast.success("Welcome to Mame!");
+    router.push("/projects");
+    router.refresh();
   }
 
   return (

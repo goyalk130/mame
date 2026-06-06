@@ -26,7 +26,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
   // Fetch issues for this board
   let query = supabase
     .from("issues")
-    .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*)")
+    .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
     .eq("project_id", project.id)
     .is("parent_id", null)
     .order("sort_order", { ascending: true });
@@ -35,21 +35,15 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
     if (sprintId) {
       query = query.eq("sprint_id", sprintId);
     } else {
-      query = query.is("sprint_id", null).eq("status", "todo"); // show nothing meaningful
-      const { data: issues } = await query;
-      return <BoardView project={project} initialIssues={[]} members={[]} sprintId={null} userId={user.id} />;
+      return <BoardView project={project} initialIssues={[]} members={[]} virtualMembers={[]} sprintId={null} userId={user.id} />;
     }
   }
 
   const { data: issues } = await query;
 
-  // Fetch members
-  const { data: members } = await supabase
-    .from("project_members")
-    .select("*, profile:profiles(*)")
-    .eq("project_id", project.id);
-
+  const { data: members } = await supabase.from("project_members").select("*, profile:profiles(*)").eq("project_id", project.id);
   const { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", project.owner_id).single();
+  const { data: virtualMembers } = await supabase.from("virtual_members").select("*").eq("project_id", project.id).order("created_at");
 
   const allMembers = [
     ...(ownerProfile ? [{ id: "owner", project_id: project.id, user_id: project.owner_id, role: "admin", created_at: "", profile: ownerProfile }] : []),
@@ -61,6 +55,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
       project={project}
       initialIssues={issues || []}
       members={allMembers}
+      virtualMembers={virtualMembers || []}
       sprintId={sprintId}
       userId={user.id}
     />

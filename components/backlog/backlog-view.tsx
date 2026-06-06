@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Sprint, Project, IssueStatus } from "@/types";
+import type { Issue, Sprint, Project, IssueStatus, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +22,11 @@ interface Props {
   initialSprints: Sprint[];
   initialIssues: Issue[];
   members: any[];
+  virtualMembers?: VirtualMember[];
   userId: string;
 }
 
-export function BacklogView({ project, initialSprints, initialIssues, members, userId }: Props) {
+export function BacklogView({ project, initialSprints, initialIssues, members, virtualMembers = [], userId }: Props) {
   const router = useRouter();
   const [sprints, setSprints] = useState<Sprint[]>(initialSprints);
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
@@ -40,6 +42,34 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
   const backlogIssues = issues.filter((i) => !i.sprint_id);
   const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId);
   const activeSprint = sprints.find((s) => s.status === "active");
+  const visibleSprints = sprints.filter((s) => s.status !== "completed");
+
+  async function onDragEnd(result: DropResult) {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    const targetSprintId = destination.droppableId === "backlog" ? null : destination.droppableId;
+
+    // Optimistic update
+    setIssues((prev) =>
+      prev.map((i) => (i.id === draggableId ? { ...i, sprint_id: targetSprintId } : i))
+    );
+
+    const { error } = await supabase
+      .from("issues")
+      .update({ sprint_id: targetSprintId })
+      .eq("id", draggableId);
+
+    if (error) {
+      toast.error("Failed to move issue");
+      // Revert
+      const originalSprintId = source.droppableId === "backlog" ? null : source.droppableId;
+      setIssues((prev) =>
+        prev.map((i) => (i.id === draggableId ? { ...i, sprint_id: originalSprintId } : i))
+      );
+    }
+  }
 
   async function createSprint(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +112,6 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
 
   async function completeSprint(sprint: Sprint) {
     if (!confirm("Complete this sprint? Unfinished issues will move to backlog.")) return;
-    // Move unfinished issues to backlog
     const unfinished = issues.filter((i) => i.sprint_id === sprint.id && i.status !== "done");
     if (unfinished.length > 0) {
       await supabase.from("issues").update({ sprint_id: null }).in("id", unfinished.map((i) => i.id));
@@ -92,11 +121,6 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
     if (error) { toast.error(error.message); return; }
     setSprints((prev) => prev.map((s) => s.id === sprint.id ? data : s));
     toast.success("Sprint completed!");
-  }
-
-  async function moveToSprint(issueId: string, targetSprintId: string | null) {
-    await supabase.from("issues").update({ sprint_id: targetSprintId }).eq("id", issueId);
-    setIssues((prev) => prev.map((i) => i.id === issueId ? { ...i, sprint_id: targetSprintId } : i));
   }
 
   function handleIssueCreated(issue: Issue) {
@@ -132,107 +156,129 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
         </Button>
       </div>
 
-      {/* Sprints */}
-      {sprints.filter((s) => s.status !== "completed").map((sprint) => {
-        const spIssues = sprintIssues(sprint.id);
-        const isCollapsed = collapsed.has(sprint.id);
-        const doneCount = spIssues.filter((i) => i.status === "done").length;
+      <DragDropContext onDragEnd={onDragEnd}>
+        {/* Sprints */}
+        {visibleSprints.map((sprint) => {
+          const spIssues = sprintIssues(sprint.id);
+          const isCollapsed = collapsed.has(sprint.id);
+          const doneCount = spIssues.filter((i) => i.status === "done").length;
 
-        return (
-          <div key={sprint.id} className="mb-6 border border-gray-200 rounded-lg overflow-hidden bg-white">
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <button onClick={() => toggleCollapse(sprint.id)} className="text-gray-500">
-                  {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                </button>
-                <span className="font-semibold text-gray-900">{sprint.name}</span>
-                {sprint.status === "active" && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
-                )}
-                <span className="text-xs text-gray-500">{spIssues.length} issues · {doneCount} done</span>
-                {sprint.end_date && (
-                  <span className="text-xs text-gray-400">· Due {format(new Date(sprint.end_date), "MMM d")}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setCreateIssueSprintId(sprint.id)}
-                  className="h-7 text-xs gap-1"
-                >
-                  <Plus size={12} /> Add issue
-                </Button>
-                {sprint.status === "planned" && (
-                  <Button size="sm" onClick={() => startSprint(sprint)} className="h-7 text-xs gap-1">
-                    <Play size={12} /> Start sprint
+          return (
+            <div key={sprint.id} className="mb-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => toggleCollapse(sprint.id)} className="text-gray-500 hover:text-gray-700">
+                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  <span className="font-semibold text-gray-900">{sprint.name}</span>
+                  {sprint.status === "active" && (
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                  )}
+                  <span className="text-xs text-gray-500">{spIssues.length} issues · {doneCount} done</span>
+                  {sprint.end_date && (
+                    <span className="text-xs text-gray-400">· Due {format(new Date(sprint.end_date), "MMM d")}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setCreateIssueSprintId(sprint.id)} className="h-7 text-xs gap-1">
+                    <Plus size={12} /> Add issue
                   </Button>
-                )}
-                {sprint.status === "active" && (
-                  <Button size="sm" variant="outline" onClick={() => completeSprint(sprint)} className="h-7 text-xs gap-1">
-                    <CheckCircle size={12} /> Complete
-                  </Button>
-                )}
+                  {sprint.status === "planned" && (
+                    <Button size="sm" onClick={() => startSprint(sprint)} className="h-7 text-xs gap-1">
+                      <Play size={12} /> Start sprint
+                    </Button>
+                  )}
+                  {sprint.status === "active" && (
+                    <Button size="sm" variant="outline" onClick={() => completeSprint(sprint)} className="h-7 text-xs gap-1">
+                      <CheckCircle size={12} /> Complete
+                    </Button>
+                  )}
+                </div>
               </div>
+
+              <Droppable droppableId={sprint.id} isDropDisabled={isCollapsed}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={cn(
+                      "min-h-[44px] transition-colors",
+                      snapshot.isDraggingOver && "bg-blue-50",
+                      isCollapsed && "hidden"
+                    )}
+                  >
+                    {spIssues.length === 0 && !snapshot.isDraggingOver ? (
+                      <div className="py-6 text-center text-sm text-gray-400">
+                        No issues yet — drag from backlog or click Add issue
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {spIssues.map((issue, idx) => (
+                          <IssueRow
+                            key={issue.id}
+                            issue={issue}
+                            index={idx}
+                            onSelect={setSelectedIssue}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
             </div>
-            {!isCollapsed && (
-              <div>
-                {spIssues.length === 0 ? (
+          );
+        })}
+
+        {/* Backlog */}
+        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <button onClick={() => toggleCollapse("backlog")} className="text-gray-500 hover:text-gray-700">
+                {collapsed.has("backlog") ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+              </button>
+              <span className="font-semibold text-gray-900">Backlog</span>
+              <span className="text-xs text-gray-500">{backlogIssues.length} issues</span>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setCreateIssueSprintId("backlog")} className="h-7 text-xs gap-1">
+              <Plus size={12} /> Add issue
+            </Button>
+          </div>
+
+          <Droppable droppableId="backlog" isDropDisabled={collapsed.has("backlog")}>
+            {(provided, snapshot) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={cn(
+                  "min-h-[44px] transition-colors",
+                  snapshot.isDraggingOver && "bg-blue-50",
+                  collapsed.has("backlog") && "hidden"
+                )}
+              >
+                {backlogIssues.length === 0 && !snapshot.isDraggingOver ? (
                   <div className="py-8 text-center text-sm text-gray-400">
-                    No issues yet. Add issues from the backlog or create new ones.
+                    Backlog is empty — create issues to get started
                   </div>
                 ) : (
-                  <IssueList
-                    issues={spIssues}
-                    onSelect={setSelectedIssue}
-                    onMoveToBacklog={(id) => moveToSprint(id, null)}
-                    showMove
-                    moveLabel="Move to backlog"
-                  />
+                  <div className="divide-y divide-gray-100">
+                    {backlogIssues.map((issue, idx) => (
+                      <IssueRow
+                        key={issue.id}
+                        issue={issue}
+                        index={idx}
+                        onSelect={setSelectedIssue}
+                      />
+                    ))}
+                  </div>
                 )}
+                {provided.placeholder}
               </div>
             )}
-          </div>
-        );
-      })}
-
-      {/* Backlog */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <button onClick={() => toggleCollapse("backlog")} className="text-gray-500">
-              {collapsed.has("backlog") ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-            </button>
-            <span className="font-semibold text-gray-900">Backlog</span>
-            <span className="text-xs text-gray-500">{backlogIssues.length} issues</span>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setCreateIssueSprintId("backlog")}
-            className="h-7 text-xs gap-1"
-          >
-            <Plus size={12} /> Add issue
-          </Button>
+          </Droppable>
         </div>
-        {!collapsed.has("backlog") && (
-          <div>
-            {backlogIssues.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-400">
-                Backlog is empty. Create issues to get started.
-              </div>
-            ) : (
-              <IssueList
-                issues={backlogIssues}
-                onSelect={setSelectedIssue}
-                sprints={sprints.filter((s) => s.status !== "completed")}
-                onMoveToSprint={moveToSprint}
-                showMove
-              />
-            )}
-          </div>
-        )}
-      </div>
+      </DragDropContext>
 
       {/* Create sprint dialog */}
       <Dialog open={createSprintOpen} onOpenChange={setCreateSprintOpen}>
@@ -275,6 +321,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
           defaultStatus="todo"
           sprintId={createIssueSprintId === "backlog" ? null : createIssueSprintId}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onCreated={handleIssueCreated}
         />
@@ -286,6 +333,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
           issue={selectedIssue}
           project={project}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onClose={() => setSelectedIssue(null)}
           onUpdated={handleIssueUpdated}
@@ -296,35 +344,33 @@ export function BacklogView({ project, initialSprints, initialIssues, members, u
   );
 }
 
-function IssueList({
-  issues,
-  onSelect,
-  onMoveToBacklog,
-  onMoveToSprint,
-  sprints,
-  showMove,
-  moveLabel,
-}: {
-  issues: Issue[];
-  onSelect: (i: Issue) => void;
-  onMoveToBacklog?: (id: string) => void;
-  onMoveToSprint?: (id: string, sprintId: string) => void;
-  sprints?: Sprint[];
-  showMove?: boolean;
-  moveLabel?: string;
-}) {
+function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onSelect: (i: Issue) => void }) {
   return (
-    <div className="divide-y divide-gray-100">
-      {issues.map((issue) => (
+    <Draggable draggableId={issue.id} index={index}>
+      {(provided, snapshot) => (
         <div
-          key={issue.id}
-          className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 group cursor-pointer"
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          className={cn(
+            "flex items-center gap-2 px-3 py-2.5 group cursor-pointer hover:bg-gray-50 transition-colors",
+            snapshot.isDragging && "bg-blue-50 shadow-md rounded border border-blue-200 opacity-90"
+          )}
           onClick={() => onSelect(issue)}
         >
+          {/* Drag handle */}
+          <div
+            {...provided.dragHandleProps}
+            className="text-gray-300 hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical size={14} />
+          </div>
+
           <IssueTypeIcon type={issue.type} />
           <PriorityIcon priority={issue.priority} />
           <span className="text-xs font-mono text-gray-400 w-20 shrink-0">{issue.key}</span>
           <span className="text-sm text-gray-900 flex-1 min-w-0 truncate">{issue.title}</span>
+
           <span className={cn(
             "text-xs px-2 py-0.5 rounded-full shrink-0",
             issue.status === "done" ? "bg-green-100 text-green-700" :
@@ -334,9 +380,11 @@ function IssueList({
           )}>
             {STATUS_LABELS[issue.status as IssueStatus]}
           </span>
+
           {issue.story_points != null && (
             <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{issue.story_points}</span>
           )}
+
           {issue.assignee && (
             <Avatar className="w-5 h-5 shrink-0">
               <AvatarFallback className="text-[8px]">
@@ -344,29 +392,17 @@ function IssueList({
               </AvatarFallback>
             </Avatar>
           )}
-          {showMove && (onMoveToBacklog || onMoveToSprint) && (
-            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-              {onMoveToBacklog && (
-                <button
-                  onClick={() => onMoveToBacklog(issue.id)}
-                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-0.5 rounded hover:bg-gray-100"
-                >
-                  → Backlog
-                </button>
-              )}
-              {onMoveToSprint && sprints && sprints.length > 0 && sprints.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => onMoveToSprint(issue.id, s.id)}
-                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-0.5 rounded hover:bg-gray-100"
-                >
-                  → {s.name}
-                </button>
-              ))}
+          {!issue.assignee && issue.virtual_assignee && (
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+              style={{ background: issue.virtual_assignee.color }}
+              title={issue.virtual_assignee.name}
+            >
+              {issue.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
             </div>
           )}
         </div>
-      ))}
-    </div>
+      )}
+    </Draggable>
   );
 }

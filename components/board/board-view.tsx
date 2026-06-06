@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { Plus, Filter, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, IssueStatus, Project, BoardColumn, IssuePriority, IssueType } from "@/types";
+import type { Issue, IssueStatus, Project, BoardColumn, IssuePriority, IssueType, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,11 +24,12 @@ interface Props {
   project: Project;
   initialIssues: Issue[];
   members: any[];
+  virtualMembers?: VirtualMember[];
   sprintId: string | null;
   userId: string;
 }
 
-export function BoardView({ project, initialIssues, members, sprintId, userId }: Props) {
+export function BoardView({ project, initialIssues, members, virtualMembers = [], sprintId, userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
@@ -190,6 +191,7 @@ export function BoardView({ project, initialIssues, members, sprintId, userId }:
           defaultStatus={createColumn}
           sprintId={sprintId}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onCreated={handleIssueCreated}
         />
@@ -201,6 +203,7 @@ export function BoardView({ project, initialIssues, members, sprintId, userId }:
           issue={selectedIssue}
           project={project}
           members={members}
+          virtualMembers={virtualMembers}
           userId={userId}
           onClose={() => setSelectedIssue(null)}
           onUpdated={handleIssueUpdated}
