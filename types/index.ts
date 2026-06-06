@@ -67,6 +67,7 @@ export interface Issue {
   reporter_id: string | null;
   parent_id: string | null;
   story_points: number | null;
+  start_date: string | null;
   due_date: string | null;
   sort_order: number;
   created_at: string;

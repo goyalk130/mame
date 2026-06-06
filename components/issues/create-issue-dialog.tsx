@@ -32,6 +32,8 @@ export function CreateIssueDialog({
   const [priority, setPriority] = useState<IssuePriority>("medium");
   const [assigneeId, setAssigneeId] = useState<string>("unassigned");
   const [storyPoints, setStoryPoints] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [loading, setLoading] = useState(false);
 
   // assigneeId format: "real:uuid" | "virtual:uuid" | "unassigned"
@@ -66,6 +68,8 @@ export function CreateIssueDialog({
         reporter_id: userId,
         parent_id: parentId || null,
         story_points: storyPoints ? parseInt(storyPoints) : null,
+        start_date: startDate || null,
+        due_date: dueDate || null,
         sort_order: Date.now(),
       })
       .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
@@ -79,7 +83,7 @@ export function CreateIssueDialog({
 
     toast.success(`${issueKey} created`);
     onCreated(data as Issue);
-    setTitle(""); setType("task"); setPriority("medium"); setAssigneeId("unassigned"); setStoryPoints("");
+    setTitle(""); setType("task"); setPriority("medium"); setAssigneeId("unassigned"); setStoryPoints(""); setStartDate(""); setDueDate("");
     setLoading(false);
     onClose();
   }
@@ -132,14 +136,24 @@ export function CreateIssueDialog({
               </Select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Story points</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Story points (days)</label>
               <Input
                 type="number"
                 min={0}
                 value={storyPoints}
                 onChange={(e) => setStoryPoints(e.target.value)}
-                placeholder="0"
+                placeholder="e.g. 8"
               />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
+              <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
           </div>
           <div>

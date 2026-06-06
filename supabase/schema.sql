@@ -251,4 +251,5 @@ create policy "activity_insert" on activity for insert with check (
 
 -- Migrations (idempotent — safe to run on existing databases)
 alter table issues add column if not exists virtual_assignee_id uuid references virtual_members(id) on delete set null;
+alter table issues add column if not exists start_date date;
 alter table issues alter column sort_order type bigint using sort_order::bigint;

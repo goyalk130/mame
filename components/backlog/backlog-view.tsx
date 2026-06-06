@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, Sprint, Project, IssueStatus, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
@@ -352,7 +353,8 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            "flex items-center gap-2 px-3 py-2.5 group cursor-pointer hover:bg-gray-50 transition-colors",
+            "flex items-center gap-2 px-3 py-2.5 group cursor-pointer transition-colors border-b border-gray-100 last:border-0",
+            !snapshot.isDragging && TIME_STATUS_BG[getTimeStatus(issue)],
             snapshot.isDragging && "bg-blue-50 shadow-md rounded border border-blue-200 opacity-90"
           )}
           onClick={() => onSelect(issue)}
@@ -381,9 +383,26 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
             {STATUS_LABELS[issue.status as IssueStatus]}
           </span>
 
-          {issue.story_points != null && (
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{issue.story_points}</span>
-          )}
+          {(() => {
+            const timeInfo = getTimeInfo(issue);
+            const timeStatus = getTimeStatus(issue);
+            if (timeInfo) return (
+              <span className={cn(
+                "text-xs font-medium px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5",
+                timeStatus === "overdue" ? "bg-red-100 text-red-600" :
+                timeStatus === "warning" ? "bg-yellow-100 text-yellow-700" :
+                "bg-gray-100 text-gray-500"
+              )}>
+                {timeInfo.pts}pt
+                {timeStatus === "overdue" && <span className="font-bold"> +{timeInfo.overflow}d</span>}
+                {timeStatus === "warning" && <span> {timeInfo.remaining}d</span>}
+              </span>
+            );
+            if (issue.story_points != null) return (
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{issue.story_points}pt</span>
+            );
+            return null;
+          })()}
 
           {issue.assignee && (
             <Avatar className="w-5 h-5 shrink-0">

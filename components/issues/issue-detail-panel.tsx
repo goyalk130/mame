@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { RichTextEditor } from "./rich-text-editor";
 import { cn } from "@/lib/utils";
+import { getTimeStatus, getTimeInfo } from "@/lib/time-status";
 import toast from "react-hot-toast";
 import { formatDistanceToNow, format } from "date-fns";
 
@@ -287,6 +288,39 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 
             {/* Sidebar fields */}
             <div className="w-56 shrink-0 border-l border-gray-100 px-4 py-5 space-y-5 bg-gray-50">
+
+              {/* Time tracking summary */}
+              {(() => {
+                const timeInfo = getTimeInfo(issue);
+                const timeStatus = getTimeStatus(issue);
+                if (!timeInfo) return null;
+                return (
+                  <div className={cn(
+                    "rounded-lg p-3 text-xs border",
+                    timeStatus === "overdue" ? "bg-red-50 border-red-200 text-red-700" :
+                    timeStatus === "warning" ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
+                    "bg-blue-50 border-blue-100 text-blue-700"
+                  )}>
+                    <div className="font-semibold mb-1">
+                      {timeStatus === "overdue" ? "⚠ Over budget" :
+                       timeStatus === "warning" ? "⏳ Nearing limit" :
+                       "✓ On track"}
+                    </div>
+                    <div>Budget: <strong>{timeInfo.pts} days</strong></div>
+                    <div>Elapsed: <strong>{timeInfo.elapsed} days</strong></div>
+                    {timeStatus === "overdue" && (
+                      <div className="font-bold text-red-600 mt-1">+{timeInfo.overflow} days over</div>
+                    )}
+                    {timeStatus === "warning" && (
+                      <div className="font-bold text-yellow-600 mt-1">{timeInfo.remaining} day{timeInfo.remaining !== 1 ? "s" : ""} remaining</div>
+                    )}
+                    {timeStatus === "normal" && (
+                      <div className="text-blue-600 mt-1">{timeInfo.remaining} day{timeInfo.remaining !== 1 ? "s" : ""} remaining</div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <Field label="Status">
                 <Select value={issue.status} onValueChange={(v: IssueStatus) => updateField("status", v, issue.status, STATUS_LABELS[v])}>
                   <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
@@ -373,7 +407,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                 </div>
               </Field>
 
-              <Field label="Story Points">
+              <Field label="Story Points (days)">
                 <Input
                   type="number"
                   min={0}
@@ -382,6 +416,18 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                   onBlur={(e) => {
                     const val = e.target.value ? parseInt(e.target.value) : null;
                     if (val !== issue.story_points) updateField("story_points", val);
+                  }}
+                />
+              </Field>
+
+              <Field label="Start Date">
+                <Input
+                  type="date"
+                  className="h-7 text-xs"
+                  defaultValue={issue.start_date || ""}
+                  onBlur={(e) => {
+                    const val = e.target.value || null;
+                    if (val !== issue.start_date) updateField("start_date", val);
                   }}
                 />
               </Field>
