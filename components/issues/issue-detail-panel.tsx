@@ -844,6 +844,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
           onSearch={setLinkSearch}
           onSelect={linkAsChild}
           onClose={() => setLinkChildOpen(false)}
+          showReParentWarning={true}
         />
       )}
 
@@ -864,9 +865,10 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 }
 
 function LinkIssueModal({
-  title, options, loading, search, onSearch, onSelect, onClose,
+  title, options, loading, search, onSearch, onSelect, onClose, showReParentWarning = false,
 }: {
   title: string;
+  showReParentWarning?: boolean;
   options: Issue[];
   loading: boolean;
   search: string;
@@ -918,7 +920,7 @@ function LinkIssueModal({
                   "bg-gray-100 text-gray-500"
                 )}>{STATUS_LABELS[opt.status]}</span>
               </div>
-              {opt.parent_id && (
+              {showReParentWarning && opt.parent_id && (
                 <span className="text-xs text-orange-500 mt-0.5 pl-5">
                   ⚠ Already has a parent — will be re-parented
                 </span>
