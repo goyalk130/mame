@@ -19,7 +19,6 @@ const COLUMNS: { id: IssueStatus; color: string }[] = [
   { id: "in_progress", color: "bg-blue-400" },
   { id: "in_review", color: "bg-yellow-400" },
   { id: "done", color: "bg-green-400" },
-  { id: "completed", color: "bg-emerald-600" },
 ];
 
 interface Props {
