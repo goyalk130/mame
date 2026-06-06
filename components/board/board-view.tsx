@@ -1,9 +1,9 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, Filter, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, IssueStatus, Project, BoardColumn, IssuePriority, IssueType, VirtualMember } from "@/types";
+import type { Issue, IssueStatus, Project, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +13,31 @@ import { IssueDetailPanel } from "@/components/issues/issue-detail-panel";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
-const COLUMNS: { id: IssueStatus; color: string }[] = [
-  { id: "triage", color: "bg-purple-400" },
-  { id: "todo", color: "bg-gray-400" },
-  { id: "in_progress", color: "bg-blue-400" },
-  { id: "in_review", color: "bg-yellow-400" },
-  { id: "blocked", color: "bg-red-400" },
-  { id: "done", color: "bg-green-400" },
-  { id: "not_done", color: "bg-orange-400" },
+// Grouped columns — each group is one visual column with stacked sub-sections
+const COLUMN_GROUPS: { sections: { id: IssueStatus; color: string }[] }[] = [
+  {
+    sections: [
+      { id: "triage",   color: "bg-purple-400" },
+      { id: "todo",     color: "bg-gray-400" },
+    ],
+  },
+  {
+    sections: [
+      { id: "in_progress", color: "bg-blue-400" },
+    ],
+  },
+  {
+    sections: [
+      { id: "in_review", color: "bg-yellow-400" },
+      { id: "blocked",   color: "bg-red-400" },
+    ],
+  },
+  {
+    sections: [
+      { id: "done",     color: "bg-green-400" },
+      { id: "not_done", color: "bg-orange-400" },
+    ],
+  },
 ];
 
 interface Props {
@@ -38,17 +55,55 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
+  // Auto-scroll refs
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const rafRef = useRef<number>();
+
   const filtered = issues.filter((i) =>
     !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.key.toLowerCase().includes(search.toLowerCase())
   );
 
-  const columns: BoardColumn[] = COLUMNS.map((col) => ({
-    id: col.id,
-    title: STATUS_LABELS[col.id],
-    issues: filtered.filter((i) => i.status === col.id),
-  }));
+  // Auto-scroll while dragging near left/right edges
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!draggingRef.current || !scrollRef.current) return;
+      const container = scrollRef.current;
+      const rect = container.getBoundingClientRect();
+      const threshold = 100;
+      const maxSpeed = 18;
+
+      cancelAnimationFrame(rafRef.current!);
+
+      const scroll = () => {
+        if (!draggingRef.current || !scrollRef.current) return;
+        const distLeft = e.clientX - rect.left;
+        const distRight = rect.right - e.clientX;
+
+        if (distLeft < threshold) {
+          const speed = Math.round(maxSpeed * (1 - distLeft / threshold));
+          scrollRef.current.scrollLeft -= speed;
+        } else if (distRight < threshold) {
+          const speed = Math.round(maxSpeed * (1 - distRight / threshold));
+          scrollRef.current.scrollLeft += speed;
+        }
+        rafRef.current = requestAnimationFrame(scroll);
+      };
+
+      rafRef.current = requestAnimationFrame(scroll);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      cancelAnimationFrame(rafRef.current!);
+    };
+  }, []);
 
   async function onDragEnd(result: DropResult) {
+    draggingRef.current = false;
+    cancelAnimationFrame(rafRef.current!);
+
     const { source, destination, draggableId } = result;
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
@@ -57,7 +112,6 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
     const issue = issues.find((i) => i.id === draggableId);
     if (!issue) return;
 
-    // Optimistic update
     setIssues((prev) =>
       prev.map((i) => i.id === draggableId ? { ...i, status: newStatus, sort_order: destination.index } : i)
     );
@@ -74,7 +128,6 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       return;
     }
 
-    // Log activity only if status actually changed
     if (issue.status !== newStatus) {
       await supabase.from("activity").insert({
         issue_id: draggableId,
@@ -105,7 +158,7 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">
@@ -134,70 +187,84 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-4 min-h-0">
-        <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 min-h-0 h-full" style={{ minWidth: "max-content" }}>
-            {columns.map((col) => {
-              const colConfig = COLUMNS.find((c) => c.id === col.id)!;
-              return (
-                <div key={col.id} className="w-72 flex flex-col rounded-lg bg-gray-100 overflow-hidden min-h-0 max-h-full">
-                  {/* Column header */}
-                  <div className="px-3 py-2.5 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2">
-                      <div className={cn("w-2 h-2 rounded-full", colConfig.color)} />
-                      <span className="text-sm font-medium text-gray-700">{col.title}</span>
-                      <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
-                        {col.issues.length}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setCreateColumn(col.id)}
-                      className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-200 transition-colors"
+      <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden p-4 min-h-0">
+        <DragDropContext
+          onDragStart={() => { draggingRef.current = true; }}
+          onDragEnd={onDragEnd}
+        >
+          <div className="flex gap-3 h-full min-h-0" style={{ minWidth: "max-content" }}>
+            {COLUMN_GROUPS.map((group, gi) => (
+              <div key={gi} className="w-72 flex flex-col gap-2 min-h-0 max-h-full">
+                {group.sections.map((sec, si) => {
+                  const sectionIssues = filtered.filter((i) => i.status === sec.id);
+                  // Single-section groups get full height; multi-section groups split height
+                  const isSolo = group.sections.length === 1;
+                  return (
+                    <div
+                      key={sec.id}
+                      className={cn(
+                        "flex flex-col rounded-lg bg-gray-100 overflow-hidden min-h-0",
+                        isSolo ? "flex-1" : "flex-1"
+                      )}
                     >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-
-                  {/* Cards */}
-                  <Droppable droppableId={col.id}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                        className={cn(
-                          "flex-1 overflow-y-auto px-2 pb-2 space-y-2 min-h-[40px]",
-                          snapshot.isDraggingOver && "bg-blue-50"
-                        )}
-                      >
-                        {col.issues.map((issue, idx) => (
-                          <Draggable key={issue.id} draggableId={issue.id} index={idx}>
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={cn(snapshot.isDragging && "opacity-80 rotate-1")}
-                              >
-                                <IssueCard
-                                  issue={issue}
-                                  onClick={() => setSelectedIssue(issue)}
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
+                      {/* Section header */}
+                      <div className="px-3 py-2 flex items-center justify-between shrink-0 border-b border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-2 h-2 rounded-full shrink-0", sec.color)} />
+                          <span className="text-sm font-medium text-gray-700">{STATUS_LABELS[sec.id]}</span>
+                          <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full font-medium">
+                            {sectionIssues.length}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setCreateColumn(sec.id)}
+                          className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-200 transition-colors"
+                        >
+                          <Plus size={13} />
+                        </button>
                       </div>
-                    )}
-                  </Droppable>
-                </div>
-              );
-            })}
+
+                      {/* Droppable cards area */}
+                      <Droppable droppableId={sec.id}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={cn(
+                              "flex-1 overflow-y-auto px-2 py-1.5 space-y-2 min-h-[40px]",
+                              snapshot.isDraggingOver && "bg-blue-50"
+                            )}
+                          >
+                            {sectionIssues.map((issue, idx) => (
+                              <Draggable key={issue.id} draggableId={issue.id} index={idx}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(snapshot.isDragging && "opacity-80 rotate-1")}
+                                  >
+                                    <IssueCard
+                                      issue={issue}
+                                      onClick={() => setSelectedIssue(issue)}
+                                    />
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+                          </div>
+                        )}
+                      </Droppable>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </DragDropContext>
       </div>
 
-      {/* Create issue dialog */}
       {createColumn && (
         <CreateIssueDialog
           open={!!createColumn}
@@ -213,7 +280,6 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
         />
       )}
 
-      {/* Issue detail panel */}
       {selectedIssue && (
         <IssueDetailPanel
           issue={selectedIssue}
