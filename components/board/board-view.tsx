@@ -90,7 +90,7 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -121,13 +121,13 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       </div>
 
       {/* Board */}
-      <div className="flex-1 overflow-x-auto p-4">
+      <div className="flex-1 overflow-x-auto p-4 min-h-0">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 h-full min-h-0" style={{ minWidth: "max-content" }}>
+          <div className="flex gap-3 min-h-0 h-full" style={{ minWidth: "max-content" }}>
             {columns.map((col) => {
               const colConfig = COLUMNS.find((c) => c.id === col.id)!;
               return (
-                <div key={col.id} className="w-72 flex flex-col rounded-lg bg-gray-100 overflow-hidden">
+                <div key={col.id} className="w-72 flex flex-col rounded-lg bg-gray-100 overflow-hidden min-h-0 max-h-full">
                   {/* Column header */}
                   <div className="px-3 py-2.5 flex items-center justify-between shrink-0">
                     <div className="flex items-center gap-2">
