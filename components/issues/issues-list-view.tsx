@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Filter } from "lucide-react";
-import type { Issue, Project, IssueType, IssuePriority, IssueStatus, VirtualMember } from "@/types";
+import type { Issue, Project, IssueType, IssuePriority, IssueStatus, VirtualMember, Sprint } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,11 @@ interface Props {
   initialIssues: Issue[];
   members: any[];
   virtualMembers?: VirtualMember[];
+  sprints?: Sprint[];
   userId: string;
 }
 
-export function IssuesListView({ project, initialIssues, members, virtualMembers = [], userId }: Props) {
+export function IssuesListView({ project, initialIssues, members, virtualMembers = [], sprints = [], userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
@@ -249,6 +250,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
           project={project}
           members={members}
           virtualMembers={virtualMembers}
+          sprints={sprints}
           userId={userId}
           onClose={closeIssue}
           onUpdated={handleIssueUpdated}

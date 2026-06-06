@@ -17,6 +17,7 @@ export default async function IssuesPage({ params }: { params: Promise<{ key: st
     .eq("project_id", project.id)
     .order("created_at", { ascending: false });
 
+  const { data: sprints } = await supabase.from("sprints").select("*").eq("project_id", project.id).order("created_at");
   const { data: members } = await supabase.from("project_members").select("*, profile:profiles(*)").eq("project_id", project.id);
   const { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", project.owner_id).single();
   const { data: virtualMembers } = await supabase.from("virtual_members").select("*").eq("project_id", project.id).order("created_at");
@@ -25,5 +26,5 @@ export default async function IssuesPage({ params }: { params: Promise<{ key: st
     ...(members || []).filter((m: any) => m.user_id !== project.owner_id),
   ];
 
-  return <IssuesListView project={project} initialIssues={issues || []} members={allMembers} virtualMembers={virtualMembers || []} userId={user.id} />;
+  return <IssuesListView project={project} initialIssues={issues || []} members={allMembers} virtualMembers={virtualMembers || []} sprints={sprints || []} userId={user.id} />;
 }

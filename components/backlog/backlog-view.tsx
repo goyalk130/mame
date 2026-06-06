@@ -378,6 +378,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
           project={project}
           members={members}
           virtualMembers={virtualMembers}
+          sprints={sprints}
           userId={userId}
           onClose={closeIssue}
           onUpdated={handleIssueUpdated}

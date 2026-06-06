@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, IssueStatus, Project, VirtualMember } from "@/types";
+import type { Issue, IssueStatus, Project, Sprint, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,10 +46,12 @@ interface Props {
   members: any[];
   virtualMembers?: VirtualMember[];
   sprintId: string | null;
+  sprintName?: string | null;
+  sprints?: Sprint[];
   userId: string;
 }
 
-export function BoardView({ project, initialIssues, members, virtualMembers = [], sprintId, userId }: Props) {
+export function BoardView({ project, initialIssues, members, virtualMembers = [], sprintId, sprintName, sprints = [], userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
@@ -182,8 +184,15 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   }
 
   function handleIssueUpdated(updated: Issue) {
-    setIssues((prev) => prev.map((i) => i.id === updated.id ? updated : i));
-    setSelectedIssue(updated);
+    // If sprint changed away from current sprint, remove from board
+    if (project.type === "scrum" && sprintId && updated.sprint_id !== sprintId) {
+      setIssues((prev) => prev.filter((i) => i.id !== updated.id));
+      setSelectedIssue(null);
+      closeIssue();
+    } else {
+      setIssues((prev) => prev.map((i) => i.id === updated.id ? updated : i));
+      setSelectedIssue(updated);
+    }
   }
 
   function handleIssueDeleted(id: string) {
@@ -197,9 +206,16 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">
-              {project.type === "scrum" ? "Sprint Board" : "Kanban Board"}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-gray-900">
+                {project.type === "scrum" ? "Board" : "Kanban Board"}
+              </h1>
+              {project.type === "scrum" && sprintName && (
+                <span className="text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                  {sprintName}
+                </span>
+              )}
+            </div>
             {project.type === "scrum" && !sprintId && (
               <p className="text-sm text-orange-500 mt-0.5">No active sprint. Start a sprint from the Backlog.</p>
             )}
@@ -322,6 +338,7 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
           project={project}
           members={members}
           virtualMembers={virtualMembers}
+          sprints={sprints}
           userId={userId}
           onClose={closeIssue}
           onUpdated={handleIssueUpdated}

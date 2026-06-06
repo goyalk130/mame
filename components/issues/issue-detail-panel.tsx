@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember } from "@/types";
+import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +22,7 @@ interface Props {
   project: Project;
   members: any[];
   virtualMembers?: VirtualMember[];
+  sprints?: Sprint[];
   userId: string;
   onClose: () => void;
   onUpdated: (issue: Issue) => void;
@@ -29,7 +30,7 @@ interface Props {
   onNavigate?: (issue: Issue) => void;
 }
 
-export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], userId, onClose, onUpdated, onDeleted, onNavigate }: Props) {
+export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], sprints = [], userId, onClose, onUpdated, onDeleted, onNavigate }: Props) {
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -580,6 +581,41 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                   </SelectContent>
                 </Select>
               </Field>
+
+              {sprints.length > 0 && (
+                <Field label="Sprint">
+                  <Select
+                    value={issue.sprint_id ?? "none"}
+                    onValueChange={(v) => {
+                      const newSprintId = v === "none" ? null : v;
+                      const oldSprint = sprints.find((s) => s.id === issue.sprint_id);
+                      const newSprint = sprints.find((s) => s.id === newSprintId);
+                      updateField(
+                        "sprint_id",
+                        newSprintId,
+                        oldSprint?.name ?? "Backlog",
+                        newSprint?.name ?? "Backlog"
+                      );
+                    }}
+                  >
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        <span className="text-gray-400">No sprint (Backlog)</span>
+                      </SelectItem>
+                      {sprints.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <span className="flex items-center gap-1.5">
+                            {s.status === "active" && <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />}
+                            {s.name}
+                            {s.status === "active" && <span className="text-xs text-green-600 font-medium">(active)</span>}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
 
               <Field label="Priority">
                 <Select value={issue.priority} onValueChange={(v: IssuePriority) => updateField("priority", v, issue.priority, PRIORITY_LABELS[v])}>

@@ -13,6 +13,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
 
   // Get active sprint for scrum
   let sprintId: string | null = null;
+  let sprintName: string | null = null;
   if (project.type === "scrum") {
     const { data: sprint } = await supabase
       .from("sprints")
@@ -21,6 +22,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
       .eq("status", "active")
       .single();
     sprintId = sprint?.id ?? null;
+    sprintName = sprint?.name ?? null;
   }
 
   // Fetch issues for this board
@@ -34,12 +36,13 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
     if (sprintId) {
       query = query.eq("sprint_id", sprintId);
     } else {
-      return <BoardView project={project} initialIssues={[]} members={[]} virtualMembers={[]} sprintId={null} userId={user.id} />;
+      return <BoardView project={project} initialIssues={[]} members={[]} virtualMembers={[]} sprintId={null} sprintName={null} sprints={[]} userId={user.id} />;
     }
   }
 
   const { data: issues } = await query;
 
+  const { data: allSprints } = await supabase.from("sprints").select("*").eq("project_id", project.id).order("created_at");
   const { data: members } = await supabase.from("project_members").select("*, profile:profiles(*)").eq("project_id", project.id);
   const { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", project.owner_id).single();
   const { data: virtualMembers } = await supabase.from("virtual_members").select("*").eq("project_id", project.id).order("created_at");
@@ -56,6 +59,8 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
       members={allMembers}
       virtualMembers={virtualMembers || []}
       sprintId={sprintId}
+      sprintName={sprintName}
+      sprints={allSprints || []}
       userId={user.id}
     />
   );
