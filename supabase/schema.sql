@@ -274,3 +274,41 @@ do $$ begin
   alter table issues add constraint issues_status_check check (status = any(array['triage','todo','in_progress','in_review','blocked','done','not_done','completed']));
 exception when others then null;
 end $$;
+
+-- IDEAS TABLE (idempotent)
+create table if not exists public.ideas (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  title text not null,
+  description text,
+  created_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null,
+  converted boolean not null default false,
+  converted_at timestamptz,
+  converted_issue_id uuid references public.issues(id) on delete set null
+);
+
+alter table public.ideas enable row level security;
+
+do $$ begin
+  create policy "ideas_select" on public.ideas for select using (is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "ideas_insert" on public.ideas for insert with check (auth.uid() = created_by and (is_project_owner(project_id) or is_project_member(project_id)));
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "ideas_update" on public.ideas for update using (auth.uid() = created_by or is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy "ideas_delete" on public.ideas for delete using (auth.uid() = created_by or is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null;
+end $$;
+
+create index if not exists idx_ideas_project_id on public.ideas(project_id);
+create index if not exists idx_ideas_created_at on public.ideas(project_id, created_at desc);

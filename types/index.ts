@@ -112,6 +112,19 @@ export interface Activity {
   actor?: Profile;
 }
 
+export interface Idea {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+  created_by: string | null;
+  converted: boolean;
+  converted_at: string | null;
+  converted_issue_id: string | null;
+  creator?: Profile | null;
+}
+
 export interface BoardColumn {
   id: IssueStatus;
   title: string;

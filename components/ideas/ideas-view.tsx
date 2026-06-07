@@ -1,0 +1,507 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { Idea, Project, Sprint, Profile } from "@/types";
+import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
+import { formatDistanceToNow } from "date-fns";
+
+interface IdeasViewProps {
+  project: Project;
+  initialIdeas: Idea[];
+  activeSprint: Sprint | null;
+  userId: string;
+  userProfile: Profile | null;
+}
+
+type Filter = "all" | "open" | "converted";
+
+export function IdeasView({ project, initialIdeas, activeSprint, userId, userProfile }: IdeasViewProps) {
+  const supabase = createClient();
+
+  const [ideas, setIdeas] = useState<Idea[]>(initialIdeas);
+  const [filter, setFilter] = useState<Filter>("open");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // New idea form
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Convert confirm modal
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [convertingIds, setConvertingIds] = useState<string[]>([]);
+  const [converting, setConverting] = useState(false);
+
+  // Delete confirm
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const filtered = useMemo(() => {
+    if (filter === "open") return ideas.filter((i) => !i.converted);
+    if (filter === "converted") return ideas.filter((i) => i.converted);
+    return ideas;
+  }, [ideas, filter]);
+
+  const openCount = ideas.filter((i) => !i.converted).length;
+  const convertedCount = ideas.filter((i) => i.converted).length;
+
+  // ── Create idea ───────────────────────────────────────────────────────────
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("ideas")
+      .insert({
+        project_id: project.id,
+        title: newTitle.trim(),
+        description: newDesc.trim() || null,
+        created_by: userId,
+      })
+      .select("*, creator:profiles!created_by(*)")
+      .single();
+    if (error) { toast.error(error.message); setSaving(false); return; }
+    setIdeas((prev) => [data as Idea, ...prev]);
+    setNewTitle("");
+    setNewDesc("");
+    setCreateOpen(false);
+    setSaving(false);
+    toast.success("Idea added!");
+  }
+
+  // ── Open convert confirm ──────────────────────────────────────────────────
+  function openConvert(ids: string[]) {
+    setConvertingIds(ids);
+    setConfirmOpen(true);
+  }
+
+  // ── Convert ideas → triage issues ────────────────────────────────────────
+  async function handleConvert() {
+    setConverting(true);
+    const toConvert = ideas.filter((i) => convertingIds.includes(i.id));
+
+    const results: { ideaId: string; issueId: string }[] = [];
+    for (const idea of toConvert) {
+      // Generate next issue key
+      const { data: keyNum } = await supabase.rpc("get_next_issue_key", { p_project_id: project.id });
+      const issueKey = `${project.key}-${keyNum}`;
+
+      const { data: issue, error } = await supabase
+        .from("issues")
+        .insert({
+          key: issueKey,
+          title: idea.title,
+          description: idea.description,
+          type: "task",
+          status: "triage",
+          priority: "medium",
+          project_id: project.id,
+          sprint_id: activeSprint?.id ?? null,
+          reporter_id: userId,
+          sort_order: Date.now(),
+        })
+        .select("id")
+        .single();
+
+      if (error) { toast.error(`Failed to convert "${idea.title}": ${error.message}`); continue; }
+      results.push({ ideaId: idea.id, issueId: issue.id });
+    }
+
+    // Mark ideas as converted
+    await Promise.all(
+      results.map(({ ideaId, issueId }) =>
+        supabase
+          .from("ideas")
+          .update({ converted: true, converted_at: new Date().toISOString(), converted_issue_id: issueId })
+          .eq("id", ideaId)
+      )
+    );
+
+    setIdeas((prev) =>
+      prev.map((i) => {
+        const r = results.find((r) => r.ideaId === i.id);
+        return r ? { ...i, converted: true, converted_at: new Date().toISOString(), converted_issue_id: r.issueId } : i;
+      })
+    );
+
+    setSelected(new Set());
+    setConvertingIds([]);
+    setConfirmOpen(false);
+    setConverting(false);
+    toast.success(
+      results.length === 1
+        ? "Idea converted to triage issue!"
+        : `${results.length} ideas converted to triage issues!`
+    );
+  }
+
+  // ── Delete idea ───────────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!deleteId) return;
+    setDeleting(true);
+    const { error } = await supabase.from("ideas").delete().eq("id", deleteId);
+    if (error) { toast.error(error.message); setDeleting(false); return; }
+    setIdeas((prev) => prev.filter((i) => i.id !== deleteId));
+    setSelected((prev) => { const s = new Set(prev); s.delete(deleteId); return s; });
+    setDeleteId(null);
+    setDeleting(false);
+    toast.success("Idea deleted");
+  }
+
+  // ── Select helpers ────────────────────────────────────────────────────────
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }
+
+  function toggleSelectAll() {
+    const openIds = filtered.filter((i) => !i.converted).map((i) => i.id);
+    if (openIds.every((id) => selected.has(id)) && openIds.length > 0) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(openIds));
+    }
+  }
+
+  const selectedOpen = [...selected].filter((id) => {
+    const idea = ideas.find((i) => i.id === id);
+    return idea && !idea.converted;
+  });
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3">
+          <Lightbulb size={20} className="text-yellow-500" />
+          <h1 className="text-lg font-semibold text-gray-900">Ideas</h1>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{openCount} open</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedOpen.length > 0 && (
+            <button
+              onClick={() => openConvert(selectedOpen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <ArrowRightCircle size={15} />
+              Convert {selectedOpen.length} to Triage
+            </button>
+          )}
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+          >
+            <Plus size={15} />
+            New Idea
+          </button>
+        </div>
+      </div>
+
+      {/* ── Filter tabs ── */}
+      <div className="flex items-center gap-1 px-6 py-2 border-b border-gray-100 bg-white">
+        {(["all", "open", "converted"] as Filter[]).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              "px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors",
+              filter === f ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            )}
+          >
+            {f} {f === "open" ? `(${openCount})` : f === "converted" ? `(${convertedCount})` : `(${ideas.length})`}
+          </button>
+        ))}
+        {filtered.filter((i) => !i.converted).length > 0 && filter !== "converted" && (
+          <button
+            onClick={toggleSelectAll}
+            className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            {filtered.filter((i) => !i.converted).every((i) => selected.has(i.id))
+              ? <CheckSquare size={13} />
+              : <Square size={13} />}
+            Select all
+          </button>
+        )}
+      </div>
+
+      {/* ── Ideas list ── */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+            <Lightbulb size={40} className="mb-3 text-gray-300" />
+            <p className="text-sm font-medium">
+              {filter === "converted" ? "No converted ideas yet" : "No ideas yet — add the first one!"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((idea) => (
+              <IdeaCard
+                key={idea.id}
+                idea={idea}
+                selected={selected.has(idea.id)}
+                onToggle={() => toggleSelect(idea.id)}
+                onConvert={() => openConvert([idea.id])}
+                onDelete={() => setDeleteId(idea.id)}
+                userId={userId}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Create Idea Modal ── */}
+      {createOpen && (
+        <Modal onClose={() => setCreateOpen(false)}>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">New Idea</h2>
+          <form onSubmit={handleCreate} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+              <input
+                autoFocus
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="What's the idea?"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                rows={4}
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Add more detail…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!newTitle.trim() || saving}
+                className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Add Idea"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ── Convert Confirm Modal ── */}
+      {confirmOpen && (
+        <Modal onClose={() => !converting && setConfirmOpen(false)}>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+              <ArrowRightCircle size={18} className="text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Convert to Triage</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {convertingIds.length === 1
+                  ? "This idea will become a task in Triage status."
+                  : `${convertingIds.length} ideas will become tasks in Triage status.`}
+              </p>
+            </div>
+          </div>
+
+          {/* Sprint info */}
+          <div className="bg-gray-50 rounded-lg px-4 py-3 mb-4 text-sm">
+            <span className="text-gray-500">Added to sprint: </span>
+            <span className="font-medium text-gray-800">
+              {activeSprint ? activeSprint.name : "Backlog (no active sprint)"}
+            </span>
+          </div>
+
+          {/* Ideas to convert */}
+          <div className="space-y-1.5 mb-5 max-h-40 overflow-y-auto">
+            {ideas
+              .filter((i) => convertingIds.includes(i.id))
+              .map((idea) => (
+                <div key={idea.id} className="flex items-center gap-2 px-3 py-2 bg-yellow-50 border border-yellow-100 rounded-lg">
+                  <Lightbulb size={13} className="text-yellow-500 shrink-0" />
+                  <span className="text-sm text-gray-800 truncate">{idea.title}</span>
+                </div>
+              ))}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setConfirmOpen(false)}
+              disabled={converting}
+              className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConvert}
+              disabled={converting}
+              className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {converting ? "Converting…" : "Confirm Convert"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete Confirm Modal ── */}
+      {deleteId && (
+        <Modal onClose={() => !deleting && setDeleteId(null)}>
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <AlertTriangle size={18} className="text-red-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Delete Idea</h2>
+              <p className="text-sm text-gray-500 mt-0.5">This action cannot be undone.</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 mb-5 bg-gray-50 rounded-lg px-4 py-3 truncate">
+            "{ideas.find((i) => i.id === deleteId)?.title}"
+          </p>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setDeleteId(null)} disabled={deleting} className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50">
+              {deleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── Idea Card ────────────────────────────────────────────────────────────────
+function IdeaCard({
+  idea,
+  selected,
+  onToggle,
+  onConvert,
+  onDelete,
+  userId,
+}: {
+  idea: Idea;
+  selected: boolean;
+  onToggle: () => void;
+  onConvert: () => void;
+  onDelete: () => void;
+  userId: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDesc = !!idea.description?.trim();
+  const creatorName = (idea.creator as any)?.full_name || (idea.creator as any)?.email || "Unknown";
+  const initials = creatorName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+  const timeAgo = formatDistanceToNow(new Date(idea.created_at), { addSuffix: true });
+
+  return (
+    <div
+      className={cn(
+        "bg-white border rounded-xl p-4 transition-all",
+        selected ? "border-blue-400 ring-2 ring-blue-100" : "border-gray-200 hover:border-gray-300",
+        idea.converted && "opacity-60"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        {/* Checkbox — only for open ideas */}
+        {!idea.converted ? (
+          <button onClick={onToggle} className="mt-0.5 shrink-0 text-gray-400 hover:text-blue-500 transition-colors">
+            {selected ? <CheckSquare size={16} className="text-blue-500" /> : <Square size={16} />}
+          </button>
+        ) : (
+          <div className="mt-0.5 shrink-0 w-4 h-4" />
+        )}
+
+        {/* Bulb icon */}
+        <Lightbulb size={16} className={cn("mt-0.5 shrink-0", idea.converted ? "text-gray-400" : "text-yellow-500")} />
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium text-gray-900 leading-snug">{idea.title}</p>
+            {idea.converted ? (
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                Converted
+              </span>
+            ) : (
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={onConvert}
+                  title="Convert to triage issue"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                >
+                  <ArrowRightCircle size={12} />
+                  Convert
+                </button>
+                {idea.created_by === userId && (
+                  <button
+                    onClick={onDelete}
+                    title="Delete idea"
+                    className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Description */}
+          {hasDesc && (
+            <div className="mt-1">
+              <p className={cn("text-xs text-gray-500 leading-relaxed", !expanded && "line-clamp-2")}>
+                {idea.description}
+              </p>
+              {idea.description && idea.description.length > 120 && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="text-[11px] text-blue-500 hover:underline mt-0.5"
+                >
+                  {expanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Meta */}
+          <div className="flex items-center gap-2 mt-2">
+            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
+              {initials}
+            </div>
+            <span className="text-[11px] text-gray-500">{creatorName}</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-[11px] text-gray-400">{timeAgo}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Generic Modal ────────────────────────────────────────────────────────────
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in-95 duration-150">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <X size={16} />
+        </button>
+        {children}
+      </div>
+    </div>
+  );
+}
