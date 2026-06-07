@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
@@ -65,6 +65,10 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
   const [createIssueSprintId, setCreateIssueSprintId] = useState<string | "backlog" | null>(null);
   const [sprintForm, setSprintForm] = useState({ name: "", goal: "", start_date: "", end_date: "" });
   const [savingSprint, setSavingSprint] = useState(false);
+  const [editSprintOpen, setEditSprintOpen] = useState(false);
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", goal: "", start_date: "", end_date: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const supabase = createClient();
 
@@ -167,6 +171,42 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
     toast.success("Sprint completed!");
   }
 
+  function openEditSprint(sprint: Sprint) {
+    setEditingSprint(sprint);
+    setEditForm({
+      name: sprint.name,
+      goal: sprint.goal || "",
+      start_date: sprint.start_date || "",
+      end_date: sprint.end_date || "",
+    });
+    setEditSprintOpen(true);
+  }
+
+  async function saveEditSprint(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingSprint) return;
+    if (!editForm.name.trim()) { toast.error("Sprint name is required"); return; }
+    setSavingEdit(true);
+    const { data, error } = await supabase
+      .from("sprints")
+      .update({
+        name: editForm.name.trim(),
+        goal: editForm.goal.trim() || null,
+        start_date: editForm.start_date || null,
+        end_date: editForm.end_date || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", editingSprint.id)
+      .select()
+      .single();
+    setSavingEdit(false);
+    if (error) { toast.error("Failed to save sprint"); return; }
+    setSprints((prev) => prev.map((s) => s.id === editingSprint.id ? { ...s, ...data } : s));
+    setEditSprintOpen(false);
+    setEditingSprint(null);
+    toast.success("Sprint updated");
+  }
+
   function handleIssueCreated(issue: Issue) {
     setIssues((prev) => [...prev, issue]);
     setCreateIssueSprintId(null);
@@ -224,6 +264,13 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openEditSprint(sprint)}
+                    className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    title="Edit sprint"
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <Button size="sm" variant="ghost" onClick={() => setCreateIssueSprintId(sprint.id)} className="h-7 text-xs gap-1">
                     <Plus size={12} /> Add issue
                   </Button>
@@ -323,6 +370,37 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
           </Droppable>
         </div>
       </DragDropContext>
+
+      {/* Edit sprint dialog */}
+      <Dialog open={editSprintOpen} onOpenChange={setEditSprintOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit sprint</DialogTitle></DialogHeader>
+          <form onSubmit={saveEditSprint} className="space-y-4 mt-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sprint name</label>
+              <Input value={editForm.name} onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))} placeholder="Sprint name" autoFocus />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Goal</label>
+              <Input value={editForm.goal} onChange={(e) => setEditForm((p) => ({ ...p, goal: e.target.value }))} placeholder="What does success look like?" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+                <Input type="date" value={editForm.start_date} onChange={(e) => setEditForm((p) => ({ ...p, start_date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End date</label>
+                <Input type="date" value={editForm.end_date} onChange={(e) => setEditForm((p) => ({ ...p, end_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" onClick={() => setEditSprintOpen(false)} className="flex-1">Cancel</Button>
+              <Button type="submit" disabled={savingEdit} className="flex-1">{savingEdit ? "Saving..." : "Save changes"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Create sprint dialog */}
       <Dialog open={createSprintOpen} onOpenChange={setCreateSprintOpen}>

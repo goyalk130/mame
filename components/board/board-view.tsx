@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, ChevronDown, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, IssueStatus, Project, Sprint, VirtualMember } from "@/types";
 import { STATUS_LABELS } from "@/types";
@@ -54,8 +54,19 @@ interface Props {
 export function BoardView({ project, initialIssues, members, virtualMembers = [], sprintId, sprintName, sprints = [], userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  // Build user map for the filter dropdown
+  const userMap: Record<string, { name: string; color?: string }> = { unassigned: { name: "Unassigned" } };
+  members.forEach((m: any) => {
+    userMap[m.user_id] = { name: m.profile?.full_name || m.profile?.email || "Unknown" };
+  });
+  virtualMembers.forEach((vm) => {
+    userMap[`v:${vm.id}`] = { name: vm.name, color: vm.color };
+  });
 
   // URL-based navigation
   function openIssue(issue: Issue) {
@@ -98,9 +109,16 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
   const draggingRef = useRef(false);
   const rafRef = useRef<number>();
 
-  const filtered = issues.filter((i) =>
-    !search || i.title.toLowerCase().includes(search.toLowerCase()) || i.key.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = issues.filter((i) => {
+    if (search && !i.title.toLowerCase().includes(search.toLowerCase()) && !i.key.toLowerCase().includes(search.toLowerCase())) return false;
+    if (selectedUser !== "all") {
+      const assigneeKey = i.assignee_id ? i.assignee_id
+        : (i as any).virtual_assignee_id ? `v:${(i as any).virtual_assignee_id}`
+        : "unassigned";
+      if (assigneeKey !== selectedUser) return false;
+    }
+    return true;
+  });
 
   // Auto-scroll while dragging near left/right edges
   useEffect(() => {
@@ -221,6 +239,63 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
             )}
           </div>
           <div className="flex items-center gap-3">
+            {/* Person filter dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setFilterOpen((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 transition-colors h-8",
+                  selectedUser !== "all" ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                )}
+              >
+                <Users size={13} />
+                <span className="font-medium max-w-[110px] truncate">
+                  {selectedUser === "all" ? "All people" : (userMap[selectedUser]?.name || selectedUser)}
+                </span>
+                <ChevronDown size={12} className="text-gray-400 shrink-0" />
+              </button>
+
+              {filterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto">
+                      {["all", ...Object.keys(userMap)].map((k) => {
+                        const info = k === "all" ? { name: "All people" } : (userMap[k] || { name: k });
+                        const isSelected = selectedUser === k;
+                        // count issues for this person
+                        const count = k === "all" ? issues.length : issues.filter((i) => {
+                          const ak = i.assignee_id ? i.assignee_id
+                            : (i as any).virtual_assignee_id ? `v:${(i as any).virtual_assignee_id}`
+                            : "unassigned";
+                          return ak === k;
+                        }).length;
+                        if (k !== "all" && count === 0) return null;
+                        return (
+                          <button
+                            key={k}
+                            onClick={() => { setSelectedUser(k); setFilterOpen(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors",
+                              isSelected && "bg-blue-50 text-blue-700"
+                            )}
+                          >
+                            {(info as any).color ? (
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: (info as any).color }} />
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+                            )}
+                            <span className="flex-1 truncate font-medium">{info.name}</span>
+                            <span className="text-xs text-gray-400 shrink-0">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <Input

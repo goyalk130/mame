@@ -100,6 +100,9 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
             Create issue
           </Button>
         </div>
+
+
+
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
