@@ -282,7 +282,7 @@ create table if not exists public.ideas (
   title text not null,
   description text,
   created_at timestamptz not null default now(),
-  created_by uuid references auth.users(id) on delete set null,
+  created_by uuid references public.profiles(id) on delete set null,
   converted boolean not null default false,
   converted_at timestamptz,
   converted_issue_id uuid references public.issues(id) on delete set null
@@ -312,3 +312,11 @@ end $$;
 
 create index if not exists idx_ideas_project_id on public.ideas(project_id);
 create index if not exists idx_ideas_created_at on public.ideas(project_id, created_at desc);
+
+-- Fix ideas.created_by FK to point to profiles (not auth.users) so Supabase join works
+do $$ begin
+  alter table public.ideas drop constraint if exists ideas_created_by_fkey;
+  alter table public.ideas add constraint ideas_created_by_fkey
+    foreign key (created_by) references public.profiles(id) on delete set null;
+exception when others then null;
+end $$;
