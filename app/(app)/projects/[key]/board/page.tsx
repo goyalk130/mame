@@ -1,66 +1,66 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BoardView } from "@/components/board/board-view";
+import { getUser, getProject, getProjectMembers, getVirtualMembers, getProjectSprints, getActiveSprint } from "@/lib/data";
 
 export default async function BoardPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  const user = await getUser();
   if (!user) redirect("/login");
 
-  const { data: project } = await supabase.from("projects").select("*").eq("key", key).single();
+  const project = await getProject(key);
   if (!project) notFound();
 
-  // Get active sprint for scrum
-  let sprintId: string | null = null;
-  let sprintName: string | null = null;
-  if (project.type === "scrum") {
-    const { data: sprint } = await supabase
-      .from("sprints")
-      .select("*")
-      .eq("project_id", project.id)
-      .eq("status", "active")
-      .single();
-    sprintId = sprint?.id ?? null;
-    sprintName = sprint?.name ?? null;
+  // Cached helpers + issues in parallel
+  const supabase = await createClient();
+  const [members, virtualMembers, allSprints, activeSprint] = await Promise.all([
+    getProjectMembers(project.id, project.owner_id),
+    getVirtualMembers(project.id),
+    getProjectSprints(project.id),
+    project.type === "scrum" ? getActiveSprint(project.id) : Promise.resolve(null),
+  ]);
+
+  const sprintId = activeSprint?.id ?? null;
+  const sprintName = activeSprint?.name ?? null;
+
+  // No active sprint for scrum — nothing to show
+  if (project.type === "scrum" && !sprintId) {
+    return (
+      <BoardView
+        project={project}
+        initialIssues={[]}
+        members={members}
+        virtualMembers={virtualMembers}
+        sprintId={null}
+        sprintName={null}
+        sprints={allSprints}
+        userId={user.id}
+      />
+    );
   }
 
-  // Fetch issues for this board
   let query = supabase
     .from("issues")
     .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
     .eq("project_id", project.id)
     .order("sort_order", { ascending: true });
 
-  if (project.type === "scrum") {
-    if (sprintId) {
-      query = query.eq("sprint_id", sprintId);
-    } else {
-      return <BoardView project={project} initialIssues={[]} members={[]} virtualMembers={[]} sprintId={null} sprintName={null} sprints={[]} userId={user.id} />;
-    }
+  if (project.type === "scrum" && sprintId) {
+    query = query.eq("sprint_id", sprintId);
   }
 
   const { data: issues } = await query;
-
-  const { data: allSprints } = await supabase.from("sprints").select("*").eq("project_id", project.id).order("created_at");
-  const { data: members } = await supabase.from("project_members").select("*, profile:profiles(*)").eq("project_id", project.id);
-  const { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", project.owner_id).single();
-  const { data: virtualMembers } = await supabase.from("virtual_members").select("*").eq("project_id", project.id).order("created_at");
-
-  const allMembers = [
-    ...(ownerProfile ? [{ id: "owner", project_id: project.id, user_id: project.owner_id, role: "admin", created_at: "", profile: ownerProfile }] : []),
-    ...(members || []).filter((m: any) => m.user_id !== project.owner_id),
-  ];
 
   return (
     <BoardView
       project={project}
       initialIssues={issues || []}
-      members={allMembers}
-      virtualMembers={virtualMembers || []}
+      members={members}
+      virtualMembers={virtualMembers}
       sprintId={sprintId}
       sprintName={sprintName}
-      sprints={allSprints || []}
+      sprints={allSprints}
       userId={user.id}
     />
   );

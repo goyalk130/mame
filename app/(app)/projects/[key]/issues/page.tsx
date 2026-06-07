@@ -1,30 +1,37 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { IssuesListView } from "@/components/issues/issues-list-view";
+import { getUser, getProject, getProjectMembers, getVirtualMembers, getProjectSprints } from "@/lib/data";
 
 export default async function IssuesPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  const user = await getUser();
   if (!user) redirect("/login");
 
-  const { data: project } = await supabase.from("projects").select("*").eq("key", key).single();
+  const project = await getProject(key);
   if (!project) notFound();
 
-  const { data: issues } = await supabase
-    .from("issues")
-    .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
-    .eq("project_id", project.id)
-    .order("created_at", { ascending: false });
+  const supabase = await createClient();
+  const [members, virtualMembers, sprints, issuesRes] = await Promise.all([
+    getProjectMembers(project.id, project.owner_id),
+    getVirtualMembers(project.id),
+    getProjectSprints(project.id),
+    supabase
+      .from("issues")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
+      .eq("project_id", project.id)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  const { data: sprints } = await supabase.from("sprints").select("*").eq("project_id", project.id).order("created_at");
-  const { data: members } = await supabase.from("project_members").select("*, profile:profiles(*)").eq("project_id", project.id);
-  const { data: ownerProfile } = await supabase.from("profiles").select("*").eq("id", project.owner_id).single();
-  const { data: virtualMembers } = await supabase.from("virtual_members").select("*").eq("project_id", project.id).order("created_at");
-  const allMembers = [
-    ...(ownerProfile ? [{ id: "owner", project_id: project.id, user_id: project.owner_id, role: "admin", created_at: "", profile: ownerProfile }] : []),
-    ...(members || []).filter((m: any) => m.user_id !== project.owner_id),
-  ];
-
-  return <IssuesListView project={project} initialIssues={issues || []} members={allMembers} virtualMembers={virtualMembers || []} sprints={sprints || []} userId={user.id} />;
+  return (
+    <IssuesListView
+      project={project}
+      initialIssues={issuesRes.data || []}
+      members={members}
+      virtualMembers={virtualMembers}
+      sprints={sprints}
+      userId={user.id}
+    />
+  );
 }

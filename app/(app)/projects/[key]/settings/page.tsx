@@ -1,20 +1,19 @@
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { ProjectSettings } from "@/components/projects/project-settings";
+import { getUser, getProject, getProjectMembers } from "@/lib/data";
 
 export default async function SettingsPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  const user = await getUser();
   if (!user) redirect("/login");
 
-  const { data: project } = await supabase.from("projects").select("*").eq("key", key).single();
+  const [project, members] = await Promise.all([
+    getProject(key),
+    getProject(key).then((p) => p ? getProjectMembers(p.id, p.owner_id) : []),
+  ]);
+
   if (!project) notFound();
 
-  const { data: members } = await supabase
-    .from("project_members")
-    .select("*, profile:profiles(*)")
-    .eq("project_id", project.id);
-
-  return <ProjectSettings project={project} members={members || []} userId={user.id} />;
+  return <ProjectSettings project={project} members={members} userId={user.id} />;
 }
