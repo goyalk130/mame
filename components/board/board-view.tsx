@@ -324,15 +324,10 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
               <div key={gi} className="w-72 flex flex-col gap-2 min-h-0 max-h-full">
                 {group.sections.map((sec, si) => {
                   const sectionIssues = filtered.filter((i) => i.status === sec.id);
-                  // Single-section groups get full height; multi-section groups split height
-                  const isSolo = group.sections.length === 1;
                   return (
                     <div
                       key={sec.id}
-                      className={cn(
-                        "flex flex-col rounded-lg bg-gray-100 overflow-hidden min-h-0",
-                        isSolo ? "flex-1" : "flex-1"
-                      )}
+                      className="flex flex-col rounded-lg bg-gray-100 overflow-hidden min-h-0 flex-1"
                     >
                       {/* Section header */}
                       <div className="px-3 py-2 flex items-center justify-between shrink-0 border-b border-gray-200">

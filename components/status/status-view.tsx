@@ -1,8 +1,9 @@
 "use client";
 import { useMemo, useState, useRef } from "react";
-import type { Project, VirtualMember } from "@/types";
-import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import type { Project, VirtualMember, IssueStatus } from "@/types";
+import { STATUS_LABELS } from "@/types";
+import { cn, getInitials } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 import { ExportPdfButton } from "@/components/export/export-pdf-button";
 
 interface RawIssue {
@@ -37,12 +38,6 @@ const STATUS_COLORS: Record<string, string> = {
   done:        "#22c55e",
   not_done:    "#f97316",
   completed:   "#059669",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  triage: "Triage", todo: "To Do", in_progress: "In Progress",
-  in_review: "In Review", blocked: "Blocked", done: "Done",
-  not_done: "Not Done", completed: "Completed",
 };
 
 const TYPE_ORDER = ["epic", "story", "task", "bug", "subtask"];
@@ -280,11 +275,11 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
                     {(info as any).color ? (
                       <div className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-white text-[8px] font-bold"
                         style={{ background: (info as any).color }}>
-                        {info.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        {getInitials(info.name)}
                       </div>
                     ) : (
                       <div className="w-5 h-5 rounded-full shrink-0 bg-gray-200 flex items-center justify-center text-gray-600 text-[8px] font-bold">
-                        {info.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        {getInitials(info.name)}
                       </div>
                     )}
                     {/* Name */}
@@ -330,11 +325,11 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
                     {(info as any).color ? (
                       <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                         style={{ background: (info as any).color }}>
-                        {info.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        {getInitials(info.name)}
                       </div>
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-bold shrink-0">
-                        {info.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        {getInitials(info.name)}
                       </div>
                     )}
                     <div className="min-w-0">
@@ -358,7 +353,7 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
                       const p = data.total > 0 ? (count / data.total) * 100 : 0;
                       return (
                         <div key={s} className="flex items-center gap-1.5 text-xs">
-                          <span className="w-14 text-gray-400 shrink-0 truncate">{STATUS_LABELS[s] || s}</span>
+                          <span className="w-14 text-gray-400 shrink-0 truncate">{STATUS_LABELS[s as IssueStatus] || s}</span>
                           <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
                             <div className="h-full rounded-full" style={{ width: `${p}%`, background: STATUS_COLORS[s] || "#9ca3af" }} />
                           </div>

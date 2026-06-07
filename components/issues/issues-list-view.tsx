@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import type { Issue, Project, IssueType, IssuePriority, IssueStatus, VirtualMember, Sprint } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { IssueTypeIcon, PriorityIcon } from "@/components/ui/issue-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CreateIssueDialog } from "./create-issue-dialog";
 import { IssueDetailPanel } from "./issue-detail-panel";
-import { cn } from "@/lib/utils";
+import { cn, statusBadgeClass, getInitials } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
 interface Props {
@@ -182,17 +182,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                   <span className="text-gray-900 line-clamp-1">{issue.title}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className={cn(
-                    "text-xs px-2 py-0.5 rounded-full",
-                    issue.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                    issue.status === "done" ? "bg-green-100 text-green-700" :
-                    issue.status === "not_done" ? "bg-orange-100 text-orange-700" :
-                    issue.status === "blocked" ? "bg-red-100 text-red-700" :
-                    issue.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                    issue.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
-                    issue.status === "triage" ? "bg-purple-100 text-purple-700" :
-                    "bg-gray-100 text-gray-600"
-                  )}>
+                  <span className={cn("text-xs px-2 py-0.5 rounded-full", statusBadgeClass(issue.status))}>
                     {STATUS_LABELS[issue.status as IssueStatus]}
                   </span>
                 </td>
@@ -207,7 +197,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                     <div className="flex items-center gap-1.5">
                       <Avatar className="w-5 h-5">
                         <AvatarFallback className="text-[8px]">
-                          {(issue.assignee.full_name || issue.assignee.email).split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                          {getInitials(issue.assignee.full_name || issue.assignee.email)}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.assignee.full_name || issue.assignee.email}</span>
@@ -215,7 +205,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                   ) : issue.virtual_assignee ? (
                     <div className="flex items-center gap-1.5">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: issue.virtual_assignee.color }}>
-                        {issue.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                        {getInitials(issue.virtual_assignee.name)}
                       </div>
                       <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.virtual_assignee.name}</span>
                     </div>

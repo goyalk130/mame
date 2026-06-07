@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/types";
 import toast from "react-hot-toast";
@@ -26,12 +26,7 @@ export function Sidebar({ projects, currentProject, user }: SidebarProps) {
     router.push("/login");
   }
 
-  const initials = (user.full_name || user.email)
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = getInitials(user.full_name || user.email);
 
   return (
     <aside className={cn("flex flex-col h-full bg-[#1d2125] text-gray-300 transition-all duration-200", collapsed ? "w-14" : "w-56")}>

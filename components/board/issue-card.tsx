@@ -2,7 +2,7 @@
 import type { Issue } from "@/types";
 import { IssueTypeIcon, PriorityIcon } from "@/components/ui/issue-icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 
 interface Props {
@@ -64,7 +64,7 @@ export function IssueCard({ issue, onClick }: Props) {
             <Avatar className="w-5 h-5">
               <AvatarImage src={issue.assignee.avatar_url || undefined} />
               <AvatarFallback className="text-[8px]">
-                {(issue.assignee.full_name || issue.assignee.email).split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                {getInitials(issue.assignee.full_name || issue.assignee.email)}
               </AvatarFallback>
             </Avatar>
           )}
@@ -74,7 +74,7 @@ export function IssueCard({ issue, onClick }: Props) {
               style={{ background: issue.virtual_assignee.color }}
               title={issue.virtual_assignee.name}
             >
-              {issue.virtual_assignee.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+              {getInitials(issue.virtual_assignee.name)}
             </div>
           )}
         </div>

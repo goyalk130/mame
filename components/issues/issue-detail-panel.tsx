@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { RichTextEditor } from "./rich-text-editor";
 import { CreateIssueDialog } from "./create-issue-dialog";
-import { cn } from "@/lib/utils";
+import { cn, statusBadgeClass, getInitials } from "@/lib/utils";
 import { getTimeStatus, getTimeInfo } from "@/lib/time-status";
 import toast from "react-hot-toast";
 import { formatDistanceToNow, format } from "date-fns";
@@ -43,7 +43,6 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [savingTitle, setSavingTitle] = useState(false);
   const [addingComment, setAddingComment] = useState(false);
   const [tab, setTab] = useState<"comments" | "activity">("comments");
-  const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState<Issue[]>([]);
   const [parentIssue, setParentIssue] = useState<Issue | null>(null);
   const [addChildOpen, setAddChildOpen] = useState(false);
@@ -309,11 +308,6 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     onDeleted(issue.id);
   }
 
-  function initials(profile: any) {
-    return (profile?.full_name || profile?.email || "?")
-      .split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-  }
-
   return (
     <>
       {/* Backdrop */}
@@ -464,17 +458,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                         <IssueTypeIcon type={child.type} />
                         <span className="text-xs font-mono text-gray-400 shrink-0">{child.key}</span>
                         <span className="text-sm text-gray-700 flex-1 truncate">{child.title}</span>
-                        <span className={cn(
-                          "text-xs px-1.5 py-0.5 rounded-full shrink-0",
-                          child.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                          child.status === "done" ? "bg-green-100 text-green-700" :
-                          child.status === "not_done" ? "bg-orange-100 text-orange-700" :
-                          child.status === "blocked" ? "bg-red-100 text-red-700" :
-                          child.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                          child.status === "in_review" ? "bg-yellow-100 text-yellow-700" :
-                          child.status === "triage" ? "bg-purple-100 text-purple-700" :
-                          "bg-gray-100 text-gray-500"
-                        )}>
+                        <span className={cn("text-xs px-1.5 py-0.5 rounded-full shrink-0", statusBadgeClass(child.status))}>
                           {STATUS_LABELS[child.status]}
                         </span>
                         {child.assignee && (
@@ -486,7 +470,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                           <div className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center text-white text-[7px] font-bold"
                             style={{ background: child.virtual_assignee.color }}
                             title={child.virtual_assignee.name}>
-                            {child.virtual_assignee.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                            {getInitials(child.virtual_assignee.name)}
                           </div>
                         )}
                         <button
@@ -524,7 +508,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                     {comments.map((c) => (
                       <div key={c.id} className="flex gap-3">
                         <Avatar className="w-7 h-7 shrink-0">
-                          <AvatarFallback className="text-[10px]">{initials(c.author)}</AvatarFallback>
+                          <AvatarFallback className="text-[10px]">{getInitials(c.author?.full_name || c.author?.email)}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-2 mb-1">
@@ -574,7 +558,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                     {activity.map((a) => (
                       <div key={a.id} className="flex gap-2 text-sm">
                         <Avatar className="w-5 h-5 shrink-0 mt-0.5">
-                          <AvatarFallback className="text-[8px]">{initials(a.actor)}</AvatarFallback>
+                          <AvatarFallback className="text-[8px]">{getInitials(a.actor?.full_name || a.actor?.email)}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <span className="font-medium text-gray-900">{a.actor?.full_name || a.actor?.email}</span>

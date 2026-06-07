@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { IdeasView } from "@/components/ideas/ideas-view";
-import { getUser, getProject, getActiveSprint, getProfile } from "@/lib/data";
+import { getUser, getProject, getActiveSprint } from "@/lib/data";
 
 export default async function IdeasPage({ params }: { params: Promise<{ key: string }> }) {
   const { key } = await params;
@@ -12,10 +12,7 @@ export default async function IdeasPage({ params }: { params: Promise<{ key: str
   const project = await getProject(key);
   if (!project) notFound();
 
-  const [activeSprint, userProfile] = await Promise.all([
-    getActiveSprint(project.id),
-    getProfile(user.id),
-  ]);
+  const activeSprint = await getActiveSprint(project.id);
 
   const supabase = await createClient();
   const { data: ideas } = await supabase
@@ -30,7 +27,6 @@ export default async function IdeasPage({ params }: { params: Promise<{ key: str
       initialIdeas={ideas ?? []}
       activeSprint={activeSprint}
       userId={user.id}
-      userProfile={userProfile}
     />
   );
 }

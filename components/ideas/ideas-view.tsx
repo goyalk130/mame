@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Idea, Project, Sprint, Profile } from "@/types";
-import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import type { Idea, Project, Sprint } from "@/types";
+import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X } from "lucide-react";
+import { cn, getInitials } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
 
@@ -13,12 +13,11 @@ interface IdeasViewProps {
   initialIdeas: Idea[];
   activeSprint: Sprint | null;
   userId: string;
-  userProfile: Profile | null;
 }
 
 type Filter = "all" | "open" | "converted";
 
-export function IdeasView({ project, initialIdeas, activeSprint, userId, userProfile }: IdeasViewProps) {
+export function IdeasView({ project, initialIdeas, activeSprint, userId }: IdeasViewProps) {
   const supabase = createClient();
 
   const [ideas, setIdeas] = useState<Idea[]>(initialIdeas);
@@ -402,7 +401,7 @@ function IdeaCard({
   const [expanded, setExpanded] = useState(false);
   const hasDesc = !!idea.description?.trim();
   const creatorName = (idea.creator as any)?.full_name || (idea.creator as any)?.email || "Unknown";
-  const initials = creatorName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+  const initials = getInitials(creatorName);
   const timeAgo = formatDistanceToNow(new Date(idea.created_at), { addSuffix: true });
 
   return (
