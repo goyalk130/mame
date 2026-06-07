@@ -36,10 +36,15 @@ export function Sidebar({ projects, currentProject, user }: SidebarProps) {
   return (
     <aside className={cn("flex flex-col h-full bg-[#1d2125] text-gray-300 transition-all duration-200", collapsed ? "w-14" : "w-56")}>
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
+      <Link href="/" className="flex items-center gap-2 px-4 py-3 border-b border-gray-700 hover:bg-gray-700/40 transition-colors">
         <div className="w-7 h-7 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-sm shrink-0">M</div>
-        {!collapsed && <span className="font-semibold text-white text-sm">Mame</span>}
-      </div>
+        {!collapsed && (
+          <div className="flex flex-col leading-tight">
+            <span className="font-semibold text-white text-sm">Mame</span>
+            <span className="text-[9px] text-gray-500">by kirigami arts</span>
+          </div>
+        )}
+      </Link>
 
       {/* Project context */}
       {currentProject && (
