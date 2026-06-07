@@ -3,6 +3,7 @@ import { useMemo, useState, useRef } from "react";
 import type { Project, VirtualMember } from "@/types";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ExportPdfButton } from "@/components/export/export-pdf-button";
 
 interface RawIssue {
   id: string; key: string; title: string;
@@ -118,6 +119,13 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
             <h1 className="text-lg font-semibold text-gray-900">Status</h1>
             <p className="text-xs text-gray-400 mt-0.5">{total} issue{total !== 1 ? "s" : ""} · {project.name}</p>
           </div>
+
+          <ExportPdfButton
+            projectId={project.id}
+            projectKey={project.key}
+            projectName={project.name}
+            projectType={project.type}
+          />
 
           {/* Compact dropdown filter */}
           <div className="relative ml-auto" ref={filterRef}>

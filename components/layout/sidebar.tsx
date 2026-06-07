@@ -113,14 +113,18 @@ export function Sidebar({ projects, currentProject, user }: SidebarProps) {
           <LogOut size={14} className="shrink-0" />
           {!collapsed && <span>Sign out</span>}
         </button>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <Avatar className="w-6 h-6">
-            <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+        <Link
+          href="/account"
+          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-700 transition-colors group"
+          title="Account settings"
+        >
+          <Avatar className="w-6 h-6 shrink-0">
+            <AvatarFallback className="text-[10px] group-hover:bg-blue-600 transition-colors">{initials}</AvatarFallback>
           </Avatar>
           {!collapsed && (
-            <span className="text-xs text-gray-400 truncate">{user.full_name || user.email}</span>
+            <span className="text-xs text-gray-400 group-hover:text-white truncate transition-colors">{user.full_name || user.email}</span>
           )}
-        </div>
+        </Link>
       </div>
     </aside>
   );
