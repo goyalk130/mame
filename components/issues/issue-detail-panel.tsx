@@ -576,11 +576,22 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                         <Avatar className="w-5 h-5 shrink-0 mt-0.5">
                           <AvatarFallback className="text-[8px]">{initials(a.actor)}</AvatarFallback>
                         </Avatar>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <span className="font-medium text-gray-900">{a.actor?.full_name || a.actor?.email}</span>
                           {" "}
                           <span className="text-gray-600">
-                            {a.field ? `changed ${a.field} from "${a.old_value}" to "${a.new_value}"` : a.action}
+                            {a.field ? (
+                              <>
+                                <span>updated </span>
+                                <span className="font-medium text-gray-700">{a.field}</span>
+                                {formatActivityValue(a.old_value) && (
+                                  <> from <span className="bg-red-50 text-red-600 px-1 rounded line-through text-xs">{formatActivityValue(a.old_value)}</span></>
+                                )}
+                                {formatActivityValue(a.new_value) && (
+                                  <> to <span className="bg-green-50 text-green-700 px-1 rounded text-xs">{formatActivityValue(a.new_value)}</span></>
+                                )}
+                              </>
+                            ) : a.action}
                           </span>
                           {" · "}
                           <span className="text-gray-400">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
@@ -959,6 +970,24 @@ function LinkIssueModal({
       </div>
     </>
   );
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")   // remove tags
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")       // collapse whitespace
+    .trim();
+}
+
+function formatActivityValue(val: string | null | undefined): string {
+  if (!val || val === "null" || val === "undefined") return "";
+  const stripped = stripHtml(val);
+  if (!stripped) return "";
+  return stripped.length > 60 ? stripped.slice(0, 60) + "…" : stripped;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
