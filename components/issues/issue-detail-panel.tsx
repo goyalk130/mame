@@ -34,6 +34,9 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityHasMore, setActivityHasMore] = useState(false);
+  const ACTIVITY_PAGE_SIZE = 25;
   const [newComment, setNewComment] = useState("");
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(issue.title);
@@ -56,10 +59,12 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   useEffect(() => {
     setIssue(initialIssue);
     setTitleValue(initialIssue.title);
+    setActivityPage(1);
+    setActivityHasMore(false);
     fetchComments();
-    fetchActivity();
+    fetchActivity(1);
     fetchChildren();
-    fetchParentFresh();  // always fetch from DB — don't trust stale client state
+    fetchParentFresh();
   }, [initialIssue.id]);
 
   async function fetchChildren() {
@@ -218,14 +223,29 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     setComments((data as Comment[]) || []);
   }
 
-  async function fetchActivity() {
+  async function fetchActivity(page = 1) {
+    const from = (page - 1) * ACTIVITY_PAGE_SIZE;
+    const to = from + ACTIVITY_PAGE_SIZE - 1;
     const { data } = await supabase
       .from("activity")
       .select("*, actor:profiles!actor_id(*)")
       .eq("issue_id", initialIssue.id)
       .order("created_at", { ascending: false })
-      .limit(50);
-    setActivity((data as Activity[]) || []);
+      .range(from, to + 1); // fetch one extra to detect if more exist
+    const rows = (data as Activity[]) || [];
+    const hasMore = rows.length > ACTIVITY_PAGE_SIZE;
+    if (hasMore) rows.pop(); // remove the extra
+    if (page === 1) {
+      setActivity(rows);
+    } else {
+      setActivity((prev) => [...prev, ...rows]);
+    }
+    setActivityPage(page);
+    setActivityHasMore(hasMore);
+  }
+
+  async function loadMoreActivity() {
+    await fetchActivity(activityPage + 1);
   }
 
   async function updateField(field: string, value: any, displayOld?: string, displayNew?: string) {
@@ -567,6 +587,14 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                         </div>
                       </div>
                     ))}
+                    {activityHasMore && (
+                      <button
+                        onClick={loadMoreActivity}
+                        className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 border border-dashed border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                      >
+                        Load more activity
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

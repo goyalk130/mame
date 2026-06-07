@@ -249,6 +249,21 @@ create policy "activity_insert" on activity for insert with check (
   exists (select 1 from issues where id = issue_id and (is_project_owner(project_id) or is_project_member(project_id)))
 );
 
+-- Indexes for query performance
+create index if not exists idx_issues_project_id       on issues(project_id);
+create index if not exists idx_issues_sprint_id        on issues(sprint_id);
+create index if not exists idx_issues_parent_id        on issues(parent_id);
+create index if not exists idx_issues_assignee_id      on issues(assignee_id);
+create index if not exists idx_issues_status           on issues(project_id, status);
+create index if not exists idx_issues_sort_order       on issues(project_id, sort_order);
+create index if not exists idx_activity_issue_id       on activity(issue_id);
+create index if not exists idx_activity_created_at     on activity(issue_id, created_at desc);
+create index if not exists idx_comments_issue_id       on comments(issue_id);
+create index if not exists idx_project_members_project on project_members(project_id);
+create index if not exists idx_project_members_user    on project_members(user_id);
+create index if not exists idx_sprints_project_id      on sprints(project_id);
+create index if not exists idx_virtual_members_project on virtual_members(project_id);
+
 -- Migrations (idempotent — safe to run on existing databases)
 alter table issues add column if not exists virtual_assignee_id uuid references virtual_members(id) on delete set null;
 alter table issues add column if not exists start_date date;
