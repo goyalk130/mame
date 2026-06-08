@@ -74,12 +74,18 @@ export function ProjectsHome({ projects: initial, userId }: Props) {
     router.push(`/projects/${data.key}/board`);
   }
 
-  async function handleDelete(project: Project) {
-    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+  const [deleteProject, setDeleteProject] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirmDelete() {
+    if (!deleteProject) return;
+    setDeleting(true);
     const supabase = createClient();
-    const { error } = await supabase.from("projects").delete().eq("id", project.id);
-    if (error) { toast.error(error.message); return; }
-    setProjects((prev) => prev.filter((p) => p.id !== project.id));
+    const { error } = await supabase.from("projects").delete().eq("id", deleteProject.id);
+    if (error) { toast.error(error.message); setDeleting(false); return; }
+    setProjects((prev) => prev.filter((p) => p.id !== deleteProject.id));
+    setDeleteProject(null);
+    setDeleting(false);
     toast.success("Project deleted");
   }
 
@@ -119,7 +125,7 @@ export function ProjectsHome({ projects: initial, userId }: Props) {
                   </div>
                 </div>
                 <button
-                  onClick={(e) => { e.preventDefault(); handleDelete(project); }}
+                  onClick={(e) => { e.preventDefault(); setDeleteProject(project); }}
                   className="relative z-10 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
                 >
                   <Trash2 size={14} />
@@ -194,6 +200,26 @@ export function ProjectsHome({ projects: initial, userId }: Props) {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete project confirm */}
+      <Dialog open={!!deleteProject} onOpenChange={(o) => !o && setDeleteProject(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete project</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <span className="font-semibold text-gray-900">"{deleteProject?.name}"</span> and all its issues, sprints, and data. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteProject(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button onClick={confirmDelete} disabled={deleting} className="bg-red-600 hover:bg-red-700 text-white">
+              {deleting ? "Deleting…" : "Delete project"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
