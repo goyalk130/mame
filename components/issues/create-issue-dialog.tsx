@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, IssueStatus, IssueType, IssuePriority, VirtualMember } from "@/types";
 import { TYPE_LABELS, PRIORITY_LABELS, STATUS_LABELS } from "@/types";
@@ -199,24 +199,28 @@ export function CreateIssueDialog({
               <SelectContent>
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {members.length > 0 && (
-                  <div className="px-2 py-1 text-xs text-gray-400 font-medium">Team members</div>
+                  <SelectGroup>
+                    <SelectLabel>Team members</SelectLabel>
+                    {members.map((m: any) => (
+                      <SelectItem key={m.user_id} value={`real:${m.user_id}`}>
+                        {m.profile?.full_name || m.profile?.email}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 )}
-                {members.map((m: any) => (
-                  <SelectItem key={m.user_id} value={`real:${m.user_id}`}>
-                    {m.profile?.full_name || m.profile?.email}
-                  </SelectItem>
-                ))}
                 {virtualMembers.length > 0 && (
-                  <div className="px-2 py-1 text-xs text-gray-400 font-medium">Virtual members</div>
+                  <SelectGroup>
+                    <SelectLabel>Virtual members</SelectLabel>
+                    {virtualMembers.map((vm) => (
+                      <SelectItem key={vm.id} value={`virtual:${vm.id}`}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ background: vm.color }} />
+                          {vm.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 )}
-                {virtualMembers.map((vm) => (
-                  <SelectItem key={vm.id} value={`virtual:${vm.id}`}>
-                    <span className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: vm.color }} />
-                      {vm.name}
-                    </span>
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
           </div>
