@@ -86,7 +86,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (!fresh?.parent_id) { setParentIssue(null); return; }
     const { data } = await supabase
       .from("issues")
-      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)")
+      .select("id, key, title, type, status, project_id")
       .eq("id", fresh.parent_id)
       .single();
     setParentIssue(data as Issue || null);
@@ -253,7 +253,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       .from("issues")
       .update({ [field]: value, updated_at: new Date().toISOString() })
       .eq("id", issue.id)
-      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*)")
       .single();
     if (error) { toast.error(error.message); return; }
     // Log activity
@@ -336,7 +336,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       start_date: issue.start_date,
       due_date: issue.due_date,
       sort_order: Date.now(),
-    } as any).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)").single();
+    } as any).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single();
 
     if (error) { toast.error(error.message); return; }
     toast.success(`Duplicated as ${issueKey}`);
@@ -750,15 +750,15 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                   }
                   onValueChange={(v) => {
                     if (v === "unassigned") {
-                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
                     } else if (v.startsWith("virtual:")) {
                       const vmId = v.replace("virtual:", "");
                       const vm = virtualMembers.find(m => m.id === vmId);
-                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: vmId, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: vmId, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
                     } else {
                       const userId = v.replace("real:", "");
                       const m = members.find((m: any) => m.user_id === userId);
-                      supabase.from("issues").update({ assignee_id: userId, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!issues_parent_id_fkey(id, key, title, type)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
+                      supabase.from("issues").update({ assignee_id: userId, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
                     }
                   }}
                 >
