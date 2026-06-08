@@ -52,27 +52,41 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
 
   const { data: issues } = await query;
 
-  // Fetch parent data for issues that have a parent_id (same approach as detail panel)
-  let issuesWithParent = issues || [];
-  const parentIds = [...new Set((issues || []).map(i => i.parent_id).filter(Boolean))] as string[];
-  if (parentIds.length > 0) {
-    const { data: parents } = await supabase
-      .from("issues")
-      .select("id, key, title, type")
-      .in("id", parentIds);
-    if (parents) {
-      const parentMap = Object.fromEntries(parents.map(p => [p.id, p]));
-      issuesWithParent = issuesWithParent.map(i => ({
-        ...i,
-        parent: i.parent_id ? (parentMap[i.parent_id] ?? null) : null,
-      }));
-    }
+  const issueList = issues || [];
+  const issueIds = issueList.map(i => i.id);
+  const parentIds = [...new Set(issueList.map(i => i.parent_id).filter(Boolean))] as string[];
+
+  // Fetch parents, issue labels, and all project labels in parallel
+  const [parentsResult, labelsResult, allLabelsResult] = await Promise.all([
+    parentIds.length > 0
+      ? supabase.from("issues").select("id, key, title, type").in("id", parentIds)
+      : Promise.resolve({ data: [] }),
+    issueIds.length > 0
+      ? supabase.from("issue_labels").select("issue_id, label:labels(*)").in("issue_id", issueIds)
+      : Promise.resolve({ data: [] }),
+    supabase.from("labels").select("*").eq("project_id", project.id).order("created_at"),
+  ]);
+
+  const parentMap = Object.fromEntries((parentsResult.data || []).map((p: any) => [p.id, p]));
+
+  // Group labels by issue_id
+  const labelsByIssue: Record<string, any[]> = {};
+  for (const row of (labelsResult.data || []) as any[]) {
+    if (!labelsByIssue[row.issue_id]) labelsByIssue[row.issue_id] = [];
+    if (row.label) labelsByIssue[row.issue_id].push(row.label);
   }
+
+  const issuesWithParent = issueList.map(i => ({
+    ...i,
+    parent: i.parent_id ? (parentMap[i.parent_id] ?? null) : null,
+    labels: labelsByIssue[i.id] || [],
+  }));
 
   return (
     <BoardView
       project={project}
       initialIssues={issuesWithParent}
+      initialLabels={allLabelsResult.data || []}
       members={members}
       virtualMembers={virtualMembers}
       sprintId={sprintId}

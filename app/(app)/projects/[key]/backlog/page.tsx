@@ -14,7 +14,7 @@ export default async function BacklogPage({ params }: { params: Promise<{ key: s
 
   // All parallel — issues is the only non-cached query (always fresh)
   const supabase = await createClient();
-  const [sprints, members, virtualMembers, issuesRes] = await Promise.all([
+  const [sprints, members, virtualMembers, issuesRes, labelsRes] = await Promise.all([
     getProjectSprints(project.id),
     getProjectMembers(project.id, project.owner_id),
     getVirtualMembers(project.id),
@@ -23,13 +23,31 @@ export default async function BacklogPage({ params }: { params: Promise<{ key: s
       .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
       .eq("project_id", project.id)
       .order("sort_order", { ascending: true }),
+    supabase.from("labels").select("*").eq("project_id", project.id).order("created_at"),
   ]);
+
+  const issueList = issuesRes.data || [];
+  const issueIds = issueList.map((i: any) => i.id);
+  let issuesWithLabels = issueList;
+  if (issueIds.length > 0) {
+    const { data: ilRows } = await supabase
+      .from("issue_labels")
+      .select("issue_id, label:labels(*)")
+      .in("issue_id", issueIds);
+    const labelsByIssue: Record<string, any[]> = {};
+    for (const row of (ilRows || []) as any[]) {
+      if (!labelsByIssue[row.issue_id]) labelsByIssue[row.issue_id] = [];
+      if (row.label) labelsByIssue[row.issue_id].push(row.label);
+    }
+    issuesWithLabels = issueList.map((i: any) => ({ ...i, labels: labelsByIssue[i.id] || [] }));
+  }
 
   return (
     <BacklogView
       project={project}
       initialSprints={sprints}
-      initialIssues={issuesRes.data || []}
+      initialIssues={issuesWithLabels}
+      initialLabels={labelsRes.data || []}
       members={members}
       virtualMembers={virtualMembers}
       userId={user.id}

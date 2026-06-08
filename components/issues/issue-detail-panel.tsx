@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle, Copy } from "lucide-react";
+import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle, Copy, Tag, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint } from "@/types";
+import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint, Label } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -52,6 +52,10 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [linkSearch, setLinkSearch] = useState("");
   const [linkOptions, setLinkOptions] = useState<Issue[]>([]);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [issueLabels, setIssueLabels] = useState<Label[]>(initialIssue.labels || []);
+  const [allLabels, setAllLabels] = useState<Label[]>([]);
+  const [labelPickerOpen, setLabelPickerOpen] = useState(false);
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
@@ -59,12 +63,14 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   useEffect(() => {
     setIssue(initialIssue);
     setTitleValue(initialIssue.title);
+    setIssueLabels(initialIssue.labels || []);
     setActivityPage(1);
     setActivityHasMore(false);
     fetchComments();
     fetchActivity(1);
     fetchChildren();
     fetchParentFresh();
+    fetchIssueLabels();
   }, [initialIssue.id]);
 
   async function fetchChildren() {
@@ -90,6 +96,35 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       .eq("id", fresh.parent_id)
       .single();
     setParentIssue(data as Issue || null);
+  }
+
+  async function fetchIssueLabels() {
+    const { data } = await supabase
+      .from("issue_labels")
+      .select("label:labels(*)")
+      .eq("issue_id", initialIssue.id);
+    setIssueLabels((data || []).map((r: any) => r.label).filter(Boolean));
+  }
+
+  async function openLabelPicker() {
+    setLabelPickerOpen(true);
+    if (!labelsLoaded) {
+      const { data } = await supabase.from("labels").select("*").eq("project_id", issue.project_id).order("created_at");
+      setAllLabels(data || []);
+      setLabelsLoaded(true);
+    }
+  }
+
+  async function toggleLabel(label: Label) {
+    const has = issueLabels.some((l) => l.id === label.id);
+    const newLabels = has ? issueLabels.filter((l) => l.id !== label.id) : [...issueLabels, label];
+    if (has) {
+      await supabase.from("issue_labels").delete().eq("issue_id", issue.id).eq("label_id", label.id);
+    } else {
+      await supabase.from("issue_labels").insert({ issue_id: issue.id, label_id: label.id });
+    }
+    setIssueLabels(newLabels);
+    onUpdated({ ...issue, labels: newLabels });
   }
 
   // Which types are valid parents for this issue type
@@ -842,6 +877,61 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                     if (val !== issue.due_date) updateField("due_date", val);
                   }}
                 />
+              </Field>
+
+              {/* Labels */}
+              <Field label="Labels">
+                <div className="space-y-1.5">
+                  {issueLabels.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {issueLabels.map((label) => (
+                        <span
+                          key={label.id}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-white px-2 py-0.5 rounded-full"
+                          style={{ background: label.color }}
+                        >
+                          {label.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="relative">
+                    <button
+                      onClick={openLabelPicker}
+                      className="flex items-center gap-1.5 h-7 px-2 rounded-md border border-input bg-background hover:bg-accent hover:border-gray-300 text-xs text-gray-400 w-full text-left transition-colors"
+                    >
+                      <Tag size={11} />
+                      {issueLabels.length === 0 ? "Add labels..." : "Edit labels..."}
+                    </button>
+                    {labelPickerOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setLabelPickerOpen(false)} />
+                        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 overflow-hidden">
+                          {allLabels.length === 0 ? (
+                            <p className="text-xs text-gray-400 p-3 text-center">No labels yet. Create them in Settings.</p>
+                          ) : (
+                            <div className="max-h-48 overflow-y-auto py-1">
+                              {allLabels.map((label) => {
+                                const active = issueLabels.some((l) => l.id === label.id);
+                                return (
+                                  <button
+                                    key={label.id}
+                                    onClick={() => toggleLabel(label)}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors"
+                                  >
+                                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: label.color }} />
+                                    <span className="flex-1 text-left font-medium text-gray-800">{label.name}</span>
+                                    {active && <Check size={11} className="text-blue-500 shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </Field>
 
               {/* Parent link (for tasks/subtasks) */}

@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Project, VirtualMember } from "@/types";
+import type { Project, VirtualMember, Label } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Trash2, UserPlus, Users } from "lucide-react";
+import { Trash2, UserPlus, Users, Tag, Check, Pencil, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 
 interface Props {
@@ -16,6 +17,31 @@ interface Props {
   members: any[];
   userId: string;
 }
+
+const PRESET_COLORS = [
+  // Solids
+  { label: "Red",     value: "#ef4444" },
+  { label: "Orange",  value: "#f97316" },
+  { label: "Amber",   value: "#f59e0b" },
+  { label: "Yellow",  value: "#eab308" },
+  { label: "Green",   value: "#22c55e" },
+  { label: "Teal",    value: "#14b8a6" },
+  { label: "Blue",    value: "#3b82f6" },
+  { label: "Violet",  value: "#8b5cf6" },
+  { label: "Pink",    value: "#ec4899" },
+  { label: "Rose",    value: "#f43f5e" },
+  { label: "Gray",    value: "#6b7280" },
+  { label: "Black",   value: "#111827" },
+  // Gradients
+  { label: "Sunset",  value: "linear-gradient(135deg, #f97316, #ec4899)" },
+  { label: "Ocean",   value: "linear-gradient(135deg, #3b82f6, #06b6d4)" },
+  { label: "Forest",  value: "linear-gradient(135deg, #22c55e, #14b8a6)" },
+  { label: "Aurora",  value: "linear-gradient(135deg, #8b5cf6, #3b82f6)" },
+  { label: "Fire",    value: "linear-gradient(135deg, #ef4444, #f97316)" },
+  { label: "Candy",   value: "linear-gradient(135deg, #ec4899, #8b5cf6)" },
+  { label: "Gold",    value: "linear-gradient(135deg, #f59e0b, #ef4444)" },
+  { label: "Mint",    value: "linear-gradient(135deg, #a3e635, #22c55e)" },
+];
 
 export function ProjectSettings({ project, members: initialMembers, userId }: Props) {
   const router = useRouter();
@@ -31,6 +57,16 @@ export function ProjectSettings({ project, members: initialMembers, userId }: Pr
   const [vmColor, setVmColor] = useState("#6366f1");
   const [addingVm, setAddingVm] = useState(false);
   const [vmLoaded, setVmLoaded] = useState(false);
+
+  // Labels
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [labelsLoaded, setLabelsLoaded] = useState(false);
+  const [labelName, setLabelName] = useState("");
+  const [labelColor, setLabelColor] = useState(PRESET_COLORS[0].value);
+  const [addingLabel, setAddingLabel] = useState(false);
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("");
 
   const supabase = createClient();
 
@@ -114,6 +150,45 @@ export function ProjectSettings({ project, members: initialMembers, userId }: Pr
     if (error) { toast.error(error.message); return; }
     setVirtualMembers((prev) => prev.filter((m) => m.id !== id));
     toast.success("Virtual member removed");
+  }
+
+  async function loadLabels() {
+    if (labelsLoaded) return;
+    const { data } = await supabase.from("labels").select("*").eq("project_id", project.id).order("created_at");
+    setLabels(data || []);
+    setLabelsLoaded(true);
+  }
+
+  async function addLabel(e: React.FormEvent) {
+    e.preventDefault();
+    if (!labelName.trim()) return;
+    setAddingLabel(true);
+    const { data, error } = await supabase
+      .from("labels")
+      .insert({ project_id: project.id, name: labelName.trim(), color: labelColor })
+      .select().single();
+    if (error) { toast.error(error.message); setAddingLabel(false); return; }
+    setLabels((prev) => [...prev, data]);
+    setLabelName("");
+    setLabelColor(PRESET_COLORS[0].value);
+    setAddingLabel(false);
+    toast.success("Label created");
+  }
+
+  async function saveLabel(id: string) {
+    const { error } = await supabase.from("labels").update({ name: editName.trim(), color: editColor }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    setLabels((prev) => prev.map((l) => l.id === id ? { ...l, name: editName.trim(), color: editColor } : l));
+    setEditingLabel(null);
+    toast.success("Label updated");
+  }
+
+  async function deleteLabel(id: string) {
+    if (!confirm("Delete this label? It will be removed from all tickets.")) return;
+    const { error } = await supabase.from("labels").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    setLabels((prev) => prev.filter((l) => l.id !== id));
+    toast.success("Label deleted");
   }
 
   return (
@@ -249,6 +324,92 @@ export function ProjectSettings({ project, members: initialMembers, userId }: Pr
                   <button onClick={() => removeVirtualMember(vm.id)} className="text-gray-400 hover:text-red-500">
                     <Trash2 size={14} />
                   </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Labels */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Labels</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Color tags for filtering tickets across board, backlog, and issues.</p>
+          </div>
+          {!labelsLoaded && (
+            <Button size="sm" variant="outline" onClick={loadLabels} className="gap-1.5 text-xs">
+              <Tag size={13} /> Load labels
+            </Button>
+          )}
+        </div>
+
+        {labelsLoaded && (
+          <>
+            {/* Create form */}
+            <form onSubmit={addLabel} className="mb-5">
+              <div className="mb-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                <Input value={labelName} onChange={(e) => setLabelName(e.target.value)} placeholder="e.g. Design, Backend, Urgent" className="h-8 text-sm" required />
+              </div>
+              <div className="mb-3">
+                <label className="block text-xs font-medium text-gray-600 mb-2">Color / Gradient</label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      title={c.label}
+                      onClick={() => setLabelColor(c.value)}
+                      className={cn("w-7 h-7 rounded-full border-2 transition-transform hover:scale-110", labelColor === c.value ? "border-gray-900 scale-110" : "border-transparent")}
+                      style={{ background: c.value }}
+                    >
+                      {labelColor === c.value && <Check size={12} className="text-white mx-auto drop-shadow" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="w-7 h-7 rounded-full border border-gray-200 shrink-0" style={{ background: labelColor }} />
+                  <span className="text-xs text-gray-500">Preview</span>
+                </div>
+              </div>
+              <Button type="submit" disabled={addingLabel} size="sm" className="gap-1.5 h-8">
+                <Tag size={13} />
+                {addingLabel ? "Creating..." : "Create label"}
+              </Button>
+            </form>
+
+            {/* Label list */}
+            <div className="space-y-2">
+              {labels.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-4">No labels yet.</p>
+              )}
+              {labels.map((label) => (
+                <div key={label.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50">
+                  {editingLabel === label.id ? (
+                    <>
+                      <div className="w-5 h-5 rounded-full shrink-0 border border-gray-200" style={{ background: editColor }} />
+                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-7 text-sm flex-1" autoFocus />
+                      <div className="flex flex-wrap gap-1.5 max-w-[180px]">
+                        {PRESET_COLORS.map((c) => (
+                          <button key={c.value} type="button" title={c.label} onClick={() => setEditColor(c.value)}
+                            className={cn("w-5 h-5 rounded-full border-2 transition-transform hover:scale-110", editColor === c.value ? "border-gray-900" : "border-transparent")}
+                            style={{ background: c.value }}
+                          />
+                        ))}
+                      </div>
+                      <button onClick={() => saveLabel(label.id)} className="text-green-600 hover:text-green-700 shrink-0"><Check size={15} /></button>
+                      <button onClick={() => setEditingLabel(null)} className="text-gray-400 hover:text-gray-600 shrink-0"><X size={15} /></button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-5 h-5 rounded-full shrink-0" style={{ background: label.color }} />
+                      <span className="text-sm font-medium text-gray-900 flex-1">{label.name}</span>
+                      <button onClick={() => { setEditingLabel(label.id); setEditName(label.name); setEditColor(label.color); }} className="text-gray-400 hover:text-gray-600 shrink-0"><Pencil size={13} /></button>
+                      <button onClick={() => deleteLabel(label.id)} className="text-gray-400 hover:text-red-500 shrink-0"><Trash2 size={13} /></button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

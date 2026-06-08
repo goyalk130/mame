@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, Tag } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Sprint, Project, IssueStatus, VirtualMember } from "@/types";
+import type { Issue, Sprint, Project, IssueStatus, VirtualMember, Label } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,17 +22,21 @@ interface Props {
   project: Project;
   initialSprints: Sprint[];
   initialIssues: Issue[];
+  initialLabels?: Label[];
   members: any[];
   virtualMembers?: VirtualMember[];
   userId: string;
 }
 
-export function BacklogView({ project, initialSprints, initialIssues, members, virtualMembers = [], userId }: Props) {
+export function BacklogView({ project, initialSprints, initialIssues, initialLabels = [], members, virtualMembers = [], userId }: Props) {
   const router = useRouter();
   const [sprints, setSprints] = useState<Sprint[]>(initialSprints);
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelFilterOpen, setLabelFilterOpen] = useState(false);
+  const [projectLabels, setProjectLabels] = useState<Label[]>(initialLabels);
 
   function openIssue(issue: Issue) {
     setSelectedIssue(issue);
@@ -74,8 +78,14 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
 
   const supabase = createClient();
 
-  const backlogIssues = issues.filter((i) => !i.sprint_id);
-  const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId);
+  function labelMatch(i: Issue) {
+    if (selectedLabels.length === 0) return true;
+    const ids = (i.labels || []).map((l: Label) => l.id);
+    return selectedLabels.every((id) => ids.includes(id));
+  }
+
+  const backlogIssues = issues.filter((i) => !i.sprint_id && labelMatch(i));
+  const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId && labelMatch(i));
   const activeSprint = sprints.find((s) => s.status === "active");
   const visibleSprints = sprints.filter((s) => s.status !== "completed");
 
@@ -268,10 +278,63 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
     <div className="max-w-5xl mx-auto px-6 py-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900">Backlog</h1>
-        <Button size="sm" onClick={() => setCreateSprintOpen(true)} className="gap-1.5">
-          <Plus size={14} />
-          Create sprint
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Label filter */}
+          <div className="relative">
+            <button
+              onClick={async () => {
+                if (!labelFilterOpen && projectLabels.length === 0) {
+                  const supabase = createClient();
+                  const { data } = await supabase.from("labels").select("*").eq("project_id", project.id).order("created_at");
+                  setProjectLabels(data || []);
+                }
+                setLabelFilterOpen((v) => !v);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 transition-colors h-8",
+                selectedLabels.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+              )}
+            >
+              <Tag size={13} />
+              <span className="font-medium">{selectedLabels.length > 0 ? `${selectedLabels.length} label${selectedLabels.length > 1 ? "s" : ""}` : "Labels"}</span>
+              <ChevronDown size={12} className="text-gray-400 shrink-0" />
+            </button>
+            {labelFilterOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setLabelFilterOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 overflow-hidden">
+                  {projectLabels.length === 0 ? (
+                    <p className="text-xs text-gray-400 p-3 text-center">No labels. Create in Settings.</p>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {selectedLabels.length > 0 && (
+                        <button onClick={() => setSelectedLabels([])} className="w-full text-xs text-left px-3 py-1.5 text-blue-500 hover:bg-gray-50 font-medium">Clear filter</button>
+                      )}
+                      {projectLabels.map((label) => {
+                        const active = selectedLabels.includes(label.id);
+                        return (
+                          <button
+                            key={label.id}
+                            onClick={() => setSelectedLabels((prev) => active ? prev.filter((id) => id !== label.id) : [...prev, label.id])}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ background: label.color }} />
+                            <span className="flex-1 truncate font-medium text-gray-800">{label.name}</span>
+                            {active && <span className="text-blue-500">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          <Button size="sm" onClick={() => setCreateSprintOpen(true)} className="gap-1.5">
+            <Plus size={14} />
+            Create sprint
+          </Button>
+        </div>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -568,6 +631,17 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
           <span className="text-xs font-mono text-gray-400 w-20 shrink-0">{issue.key}</span>
           <span className="text-sm text-gray-900 flex-1 min-w-0 truncate">{issue.title}</span>
 
+          {/* Label pills */}
+          {issue.labels && issue.labels.length > 0 && (
+            <div className="flex items-center gap-1 shrink-0">
+              {issue.labels.map((label: Label) => (
+                <span key={label.id} className="text-[9px] font-semibold text-white px-1.5 py-0.5 rounded-full" style={{ background: label.color }}>
+                  {label.name}
+                </span>
+              ))}
+            </div>
+          )}
+
           <span className={cn("text-xs px-2 py-0.5 rounded-full shrink-0", statusBadgeClass(issue.status))}>
             {STATUS_LABELS[issue.status as IssueStatus]}
           </span>
@@ -578,13 +652,17 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
             if (timeInfo) return (
               <span className={cn(
                 "text-xs font-medium px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5",
-                timeStatus === "overdue" ? "bg-red-100 text-red-600" :
-                timeStatus === "warning" ? "bg-yellow-100 text-yellow-700" :
+                timeStatus === "overdue"      ? "bg-red-100 text-red-600" :
+                timeStatus === "warning"      ? "bg-yellow-100 text-yellow-700" :
+                timeStatus === "late_done"    ? "bg-red-50 text-red-400" :
+                timeStatus === "on_time_done" ? "bg-green-50 text-green-600" :
                 "bg-gray-100 text-gray-500"
               )}>
-                {timeInfo.pts}pt
-                {timeStatus === "overdue" && <span className="font-bold"> +{timeInfo.overflow}d</span>}
-                {timeStatus === "warning" && <span> {timeInfo.remaining}d</span>}
+                {timeStatus === "late_done"    ? <>✓ {timeInfo.daysLate}d late</> :
+                 timeStatus === "on_time_done" ? <>✓ on time</> :
+                 timeStatus === "overdue"      ? <>{timeInfo.pts}pt +{timeInfo.daysOverdue}d</> :
+                 timeStatus === "warning"      ? <>{timeInfo.pts}pt · {timeInfo.daysLeft}d left</> :
+                 <>{timeInfo.pts}pt</>}
               </span>
             );
             if (issue.story_points != null) return (

@@ -94,6 +94,21 @@ export function IssueCard({ issue, onClick }: Props) {
         </div>
       </div>
 
+      {/* Labels */}
+      {issue.labels && issue.labels.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {issue.labels.map((label) => (
+            <span
+              key={label.id}
+              className="inline-flex items-center text-[9px] font-semibold text-white px-1.5 py-0.5 rounded-full"
+              style={{ background: label.color }}
+            >
+              {label.name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Date range */}
       {(issue.start_date || issue.due_date) && (
         <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-400 font-mono">

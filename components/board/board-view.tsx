@@ -1,9 +1,9 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, Search, ChevronDown, Users } from "lucide-react";
+import { Plus, Search, ChevronDown, Users, Tag } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, IssueStatus, Project, Sprint, VirtualMember } from "@/types";
+import type { Issue, IssueStatus, Project, Sprint, VirtualMember, Label } from "@/types";
 import { STATUS_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,7 @@ const COLUMN_GROUPS: { sections: { id: IssueStatus; color: string }[] }[] = [
 interface Props {
   project: Project;
   initialIssues: Issue[];
+  initialLabels?: Label[];
   members: any[];
   virtualMembers?: VirtualMember[];
   sprintId: string | null;
@@ -51,11 +52,14 @@ interface Props {
   userId: string;
 }
 
-export function BoardView({ project, initialIssues, members, virtualMembers = [], sprintId, sprintName, sprints = [], userId }: Props) {
+export function BoardView({ project, initialIssues, initialLabels = [], members, virtualMembers = [], sprintId, sprintName, sprints = [], userId }: Props) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues);
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [labelFilterOpen, setLabelFilterOpen] = useState(false);
+  const [projectLabels, setProjectLabels] = useState<Label[]>(initialLabels);
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
@@ -116,6 +120,10 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
         : (i as any).virtual_assignee_id ? `v:${(i as any).virtual_assignee_id}`
         : "unassigned";
       if (assigneeKey !== selectedUser) return false;
+    }
+    if (selectedLabels.length > 0) {
+      const issueLabelIds = (i.labels || []).map((l: Label) => l.id);
+      if (!selectedLabels.every((id) => issueLabelIds.includes(id))) return false;
     }
     return true;
   });
@@ -215,8 +223,8 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       setSelectedIssue(null);
       closeIssue();
     } else {
-      setIssues((prev) => prev.map((i) => i.id === updated.id ? { ...updated, parent: updated.parent ?? i.parent } : i));
-      setSelectedIssue((prev) => prev ? { ...updated, parent: updated.parent ?? prev.parent } : updated);
+      setIssues((prev) => prev.map((i) => i.id === updated.id ? { ...updated, parent: updated.parent ?? i.parent, labels: updated.labels ?? i.labels } : i));
+      setSelectedIssue((prev) => prev ? { ...updated, parent: updated.parent ?? prev.parent, labels: updated.labels ?? prev.labels } : updated);
     }
   }
 
@@ -298,6 +306,58 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
                         );
                       })}
                     </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Label filter */}
+            <div className="relative">
+              <button
+                onClick={async () => {
+                  if (!labelFilterOpen && projectLabels.length === 0) {
+                    const supabase = createClient();
+                    const { data } = await supabase.from("labels").select("*").eq("project_id", project.id).order("created_at");
+                    setProjectLabels(data || []);
+                  }
+                  setLabelFilterOpen((v) => !v);
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 transition-colors h-8",
+                  selectedLabels.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600"
+                )}
+              >
+                <Tag size={13} />
+                <span className="font-medium">{selectedLabels.length > 0 ? `${selectedLabels.length} label${selectedLabels.length > 1 ? "s" : ""}` : "Labels"}</span>
+                <ChevronDown size={12} className="text-gray-400 shrink-0" />
+              </button>
+              {labelFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setLabelFilterOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 overflow-hidden">
+                    {projectLabels.length === 0 ? (
+                      <p className="text-xs text-gray-400 p-3 text-center">No labels. Create in Settings.</p>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {selectedLabels.length > 0 && (
+                          <button onClick={() => setSelectedLabels([])} className="w-full text-xs text-left px-3 py-1.5 text-blue-500 hover:bg-gray-50 font-medium">Clear filter</button>
+                        )}
+                        {projectLabels.map((label) => {
+                          const active = selectedLabels.includes(label.id);
+                          return (
+                            <button
+                              key={label.id}
+                              onClick={() => setSelectedLabels((prev) => active ? prev.filter((id) => id !== label.id) : [...prev, label.id])}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="w-3 h-3 rounded-full shrink-0" style={{ background: label.color }} />
+                              <span className="flex-1 truncate font-medium text-gray-800 text-xs">{label.name}</span>
+                              {active && <span className="text-blue-500 text-xs">✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
