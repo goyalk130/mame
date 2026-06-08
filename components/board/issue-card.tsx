@@ -97,8 +97,8 @@ export function IssueCard({ issue, onClick }: Props) {
         </div>
       )}
 
-      {/* Parent badge — only shown when parent exists */}
-      {issue.parent && (() => {
+      {/* Parent badge — only shown when parent exists with valid data */}
+      {issue.parent && (issue.parent as any).key && (() => {
         const style = PARENT_TYPE_STYLES[(issue.parent as any).type as IssueType] ?? PARENT_TYPE_STYLES.task;
         return (
           <div className="mt-1.5">
