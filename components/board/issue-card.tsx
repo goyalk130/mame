@@ -97,14 +97,14 @@ export function IssueCard({ issue, onClick }: Props) {
         </div>
       )}
 
-      {/* Parent badge — only shown when parent exists with valid data */}
+      {/* Parent badge — full width bar at bottom */}
       {issue.parent && (issue.parent as any).key && (() => {
         const style = PARENT_TYPE_STYLES[(issue.parent as any).type as IssueType] ?? PARENT_TYPE_STYLES.task;
         return (
-          <div className="mt-1.5">
-            <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full", style.bg, style.text)}>
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot)} />
-              <span className="truncate max-w-[130px]">{(issue.parent as any).key} · {(issue.parent as any).title}</span>
+          <div className={cn("mt-2 -mx-2.5 -mb-2 px-2.5 py-1 flex items-center gap-1.5 rounded-b-md", style.bg)}>
+            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot)} />
+            <span className={cn("text-[10px] font-medium truncate", style.text)}>
+              {(issue.parent as any).key} · {(issue.parent as any).title}
             </span>
           </div>
         );
