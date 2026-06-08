@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, Tag } from "lucide-react";
+import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, Tag, Users } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
@@ -37,6 +37,10 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labelFilterOpen, setLabelFilterOpen] = useState(false);
   const [projectLabels, setProjectLabels] = useState<Label[]>(initialLabels);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+  const [userFilterOpen, setUserFilterOpen] = useState(false);
 
   function openIssue(issue: Issue) {
     setSelectedIssue(issue);
@@ -78,14 +82,23 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
 
   const supabase = createClient();
 
-  function labelMatch(i: Issue) {
-    if (selectedLabels.length === 0) return true;
-    const ids = (i.labels || []).map((l: Label) => l.id);
-    return selectedLabels.every((id) => ids.includes(id));
+  function issueMatch(i: Issue) {
+    if (selectedLabels.length > 0) {
+      const ids = (i.labels || []).map((l: Label) => l.id);
+      if (!selectedLabels.every((id) => ids.includes(id))) return false;
+    }
+    if (selectedTypes.length > 0 && !selectedTypes.includes(i.type)) return false;
+    if (selectedUser !== "all") {
+      const ak = i.assignee_id ? i.assignee_id
+        : i.virtual_assignee_id ? `v:${i.virtual_assignee_id}`
+        : "unassigned";
+      if (ak !== selectedUser) return false;
+    }
+    return true;
   }
 
-  const backlogIssues = issues.filter((i) => !i.sprint_id && labelMatch(i));
-  const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId && labelMatch(i));
+  const backlogIssues = issues.filter((i) => !i.sprint_id && issueMatch(i));
+  const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId && issueMatch(i));
   const activeSprint = sprints.find((s) => s.status === "active");
   const visibleSprints = sprints.filter((s) => s.status !== "completed");
 
@@ -279,6 +292,97 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-gray-900">Backlog</h1>
         <div className="flex items-center gap-2">
+
+          {/* Type filter */}
+          {(() => {
+            const TYPES = [
+              { value: "epic",    label: "Epic",    color: "bg-purple-500" },
+              { value: "story",   label: "Story",   color: "bg-green-500"  },
+              { value: "task",    label: "Task",    color: "bg-blue-500"   },
+              { value: "bug",     label: "Bug",     color: "bg-red-500"    },
+              { value: "subtask", label: "Subtask", color: "bg-gray-400"   },
+            ];
+            return (
+              <div className="relative">
+                <button
+                  onClick={() => setTypeFilterOpen((v) => !v)}
+                  className={cn("flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 transition-colors h-8",
+                    selectedTypes.length > 0 ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600")}
+                >
+                  <span className="font-medium">{selectedTypes.length > 0 ? selectedTypes.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(", ") : "Type"}</span>
+                  <ChevronDown size={12} className="text-gray-400 shrink-0" />
+                </button>
+                {typeFilterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setTypeFilterOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-40 overflow-hidden py-1">
+                      {selectedTypes.length > 0 && (
+                        <button onClick={() => setSelectedTypes([])} className="w-full text-xs text-left px-3 py-1.5 text-blue-500 hover:bg-gray-50 font-medium">Clear filter</button>
+                      )}
+                      {TYPES.map((t) => {
+                        const active = selectedTypes.includes(t.value);
+                        return (
+                          <button key={t.value}
+                            onClick={() => setSelectedTypes((prev) => active ? prev.filter((x) => x !== t.value) : [...prev, t.value])}
+                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", t.color)} />
+                            <span className="flex-1 font-medium text-gray-800">{t.label}</span>
+                            {active && <span className="text-blue-500">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Assignee filter */}
+          {(() => {
+            const userMap: Record<string, { name: string; color?: string }> = { unassigned: { name: "Unassigned" } };
+            members.forEach((m: any) => { userMap[m.user_id] = { name: m.profile?.full_name || m.profile?.email || "Unknown" }; });
+            virtualMembers.forEach((vm) => { userMap[`v:${vm.id}`] = { name: vm.name, color: vm.color }; });
+            return (
+              <div className="relative">
+                <button
+                  onClick={() => setUserFilterOpen((v) => !v)}
+                  className={cn("flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 bg-white hover:border-gray-300 transition-colors h-8",
+                    selectedUser !== "all" ? "border-blue-400 text-blue-700 bg-blue-50" : "border-gray-200 text-gray-600")}
+                >
+                  <Users size={13} />
+                  <span className="font-medium max-w-[100px] truncate">{selectedUser === "all" ? "Assignee" : (userMap[selectedUser]?.name || selectedUser)}</span>
+                  <ChevronDown size={12} className="text-gray-400 shrink-0" />
+                </button>
+                {userFilterOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setUserFilterOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-48 overflow-hidden">
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {["all", ...Object.keys(userMap)].map((k) => {
+                          const info = k === "all" ? { name: "All people" } : (userMap[k] || { name: k });
+                          const isSelected = selectedUser === k;
+                          return (
+                            <button key={k}
+                              onClick={() => { setSelectedUser(k); setUserFilterOpen(false); }}
+                              className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-50 transition-colors", isSelected && "bg-blue-50 text-blue-700")}
+                            >
+                              {(info as any).color
+                                ? <span className="w-2 h-2 rounded-full shrink-0" style={{ background: (info as any).color }} />
+                                : <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />}
+                              <span className="flex-1 truncate font-medium text-xs">{info.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Label filter */}
           <div className="relative">
             <button

@@ -29,9 +29,10 @@ interface Props {
   onDeleted: (id: string) => void;
   onDuplicated?: (issue: Issue) => void;
   onNavigate?: (issue: Issue) => void;
+  onChildCreated?: (issue: Issue) => void;
 }
 
-export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], sprints = [], userId, onClose, onUpdated, onDeleted, onDuplicated, onNavigate }: Props) {
+export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], sprints = [], userId, onClose, onUpdated, onDeleted, onDuplicated, onNavigate, onChildCreated }: Props) {
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -999,6 +1000,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
           onCreated={(child) => {
             setChildren((prev) => [...prev, child]);
             setAddChildOpen(false);
+            onChildCreated?.(child);
           }}
         />
       )}

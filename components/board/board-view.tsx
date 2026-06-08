@@ -482,6 +482,7 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
           onDeleted={handleIssueDeleted}
           onDuplicated={(issue) => { handleIssueCreated(issue); }}
           onNavigate={openIssue}
+          onChildCreated={handleIssueCreated}
         />
       )}
     </div>
