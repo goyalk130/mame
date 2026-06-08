@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Idea, Project, Sprint } from "@/types";
 import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
+import { RichEditor } from "@/components/ui/rich-editor";
 
 interface IdeasViewProps {
   project: Project;
@@ -24,11 +25,56 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
   const [filter, setFilter] = useState<Filter>("open");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // New idea form
+  // New idea form — persisted to localStorage so drafts survive crashes
+  const DRAFT_KEY = `mame_idea_draft_${project.id}`;
   const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [saving, setSaving] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+
+  // Check for saved draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const { title, desc } = JSON.parse(saved);
+        if (title || desc) setHasDraft(true);
+      }
+    } catch {}
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist draft on every change
+  useEffect(() => {
+    if (!createOpen) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: newTitle, desc: newDesc }));
+    } catch {}
+  }, [newTitle, newDesc, createOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openCreate() {
+    // Restore draft if one exists
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY);
+      if (saved) {
+        const { title, desc } = JSON.parse(saved);
+        setNewTitle(title || "");
+        setNewDesc(desc || "");
+      } else {
+        setNewTitle("");
+        setNewDesc("");
+      }
+    } catch {
+      setNewTitle("");
+      setNewDesc("");
+    }
+    setCreateOpen(true);
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setHasDraft(false);
+  }
 
   // Convert confirm modal
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -49,11 +95,11 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
   const convertedCount = ideas.filter((i) => i.converted).length;
 
   // ── Create idea ───────────────────────────────────────────────────────────
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreate(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!newTitle.trim()) return;
     setSaving(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("ideas")
       .insert({
         project_id: project.id,
@@ -67,6 +113,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
     setIdeas((prev) => [data as Idea, ...prev]);
     setNewTitle("");
     setNewDesc("");
+    clearDraft();
     setCreateOpen(false);
     setSaving(false);
     toast.success("Idea added!");
@@ -86,10 +133,10 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
     const results: { ideaId: string; issueId: string }[] = [];
     for (const idea of toConvert) {
       // Generate next issue key
-      const { data: keyNum } = await supabase.rpc("get_next_issue_key", { p_project_id: project.id });
+      const { data: keyNum } = await (supabase as any).rpc("get_next_issue_key", { p_project_id: project.id });
       const issueKey = `${project.key}-${keyNum}`;
 
-      const { data: issue, error } = await supabase
+      const { data: issue, error } = await (supabase as any)
         .from("issues")
         .insert({
           key: issueKey,
@@ -107,13 +154,13 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
         .single();
 
       if (error) { toast.error(`Failed to convert "${idea.title}": ${error.message}`); continue; }
-      results.push({ ideaId: idea.id, issueId: issue.id });
+      results.push({ ideaId: idea.id, issueId: (issue as any).id });
     }
 
     // Mark ideas as converted
     await Promise.all(
       results.map(({ ideaId, issueId }) =>
-        supabase
+        (supabase as any)
           .from("ideas")
           .update({ converted: true, converted_at: new Date().toISOString(), converted_issue_id: issueId })
           .eq("id", ideaId)
@@ -142,7 +189,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
   async function handleDelete() {
     if (!deleteId) return;
     setDeleting(true);
-    const { error } = await supabase.from("ideas").delete().eq("id", deleteId);
+    const { error } = await (supabase as any).from("ideas").delete().eq("id", deleteId);
     if (error) { toast.error(error.message); setDeleting(false); return; }
     setIdeas((prev) => prev.filter((i) => i.id !== deleteId));
     setSelected((prev) => { const s = new Set(prev); s.delete(deleteId); return s; });
@@ -194,11 +241,14 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
             </button>
           )}
           <button
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+            onClick={openCreate}
+            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
           >
             <Plus size={15} />
             New Idea
+            {hasDraft && (
+              <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-yellow-400 rounded-full border-2 border-white" title="Unsaved draft restored" />
+            )}
           </button>
         </div>
       </div>
@@ -256,45 +306,66 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
         )}
       </div>
 
-      {/* ── Create Idea Modal ── */}
+      {/* ── Create Idea — Full Screen ── */}
       {createOpen && (
-        <Modal onClose={() => setCreateOpen(false)}>
-          <h2 className="text-base font-semibold text-gray-900 mb-4">New Idea</h2>
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
-              <input
-                autoFocus
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="What's the idea?"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+        <div className="fixed inset-0 z-50 bg-white flex flex-col">
+          {/* Full-screen header */}
+          <div className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white shrink-0">
+            <div className="flex items-center gap-3">
+              <Lightbulb size={20} className="text-yellow-500" />
+              <span className="font-semibold text-gray-900">New Idea</span>
+              {hasDraft && (
+                <span className="flex items-center gap-1.5 text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block" />
+                  Draft restored
+                  <button
+                    type="button"
+                    onClick={() => { clearDraft(); setNewTitle(""); setNewDesc(""); }}
+                    className="ml-1 text-yellow-600 hover:text-red-500 font-medium"
+                  >
+                    Discard
+                  </button>
+                </span>
+              )}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                rows={4}
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Add more detail…"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCreateOpen(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={(e) => handleCreate(e as any)}
                 disabled={!newTitle.trim() || saving}
                 className="px-4 py-2 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Add Idea"}
               </button>
             </div>
-          </form>
-        </Modal>
+          </div>
+
+          {/* Full-screen body */}
+          <div className="flex-1 overflow-y-auto px-8 py-8 max-w-4xl mx-auto w-full">
+            <input
+              autoFocus
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+              placeholder="Idea title…"
+              className="w-full text-3xl font-bold text-gray-900 placeholder-gray-300 border-none outline-none bg-transparent mb-6"
+            />
+            <RichEditor
+              key={createOpen ? "open" : "closed"}
+              content={newDesc}
+              onChange={setNewDesc}
+              placeholder="Describe your idea in detail — add context, links, images, lists…"
+              borderless
+            />
+          </div>
+        </div>
       )}
 
       {/* ── Convert Confirm Modal ── */}
@@ -459,10 +530,13 @@ function IdeaCard({
           {/* Description */}
           {hasDesc && (
             <div className="mt-1">
-              <p className={cn("text-xs text-gray-500 leading-relaxed", !expanded && "line-clamp-2")}>
-                {idea.description}
-              </p>
-              {idea.description && idea.description.length > 120 && (
+              <div className={cn("text-xs leading-relaxed overflow-hidden", !expanded && "max-h-12")}>
+                <div
+                  className="prose prose-xs max-w-none text-gray-500 [&_*]:text-xs [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0"
+                  dangerouslySetInnerHTML={{ __html: idea.description! }}
+                />
+              </div>
+              {idea.description && idea.description.replace(/<[^>]*>/g, "").length > 120 && (
                 <button
                   onClick={() => setExpanded((v) => !v)}
                   className="text-[11px] text-blue-500 hover:underline mt-0.5"
