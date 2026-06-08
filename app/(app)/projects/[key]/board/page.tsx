@@ -51,6 +51,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
   }
 
   const { data: issues } = await query;
+  console.log("BOARD ISSUES PARENT CHECK:", issues?.slice(0,3).map(i => ({ key: i.key, parent_id: i.parent_id, parent: (i as any).parent })));
 
   return (
     <BoardView
