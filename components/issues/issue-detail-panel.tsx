@@ -341,6 +341,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (error) { toast.error(error.message); return; }
     toast.success(`Duplicated as ${issueKey}`);
     onDuplicated?.(data as Issue);
+    onNavigate?.(data as Issue);
   }
 
   return (
