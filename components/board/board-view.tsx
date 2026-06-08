@@ -413,6 +413,7 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
           onClose={closeIssue}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onDuplicated={(issue) => { handleIssueCreated(issue); }}
           onNavigate={openIssue}
         />
       )}

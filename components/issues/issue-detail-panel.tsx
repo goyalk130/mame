@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle } from "lucide-react";
+import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle, Copy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
@@ -27,10 +27,11 @@ interface Props {
   onClose: () => void;
   onUpdated: (issue: Issue) => void;
   onDeleted: (id: string) => void;
+  onDuplicated?: (issue: Issue) => void;
   onNavigate?: (issue: Issue) => void;
 }
 
-export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], sprints = [], userId, onClose, onUpdated, onDeleted, onNavigate }: Props) {
+export function IssueDetailPanel({ issue: initialIssue, project, members, virtualMembers = [], sprints = [], userId, onClose, onUpdated, onDeleted, onDuplicated, onNavigate }: Props) {
   const [issue, setIssue] = useState<Issue>(initialIssue);
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -308,6 +309,40 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     onDeleted(issue.id);
   }
 
+  async function handleDuplicate() {
+    // Build unique title: append (2), or increment existing number
+    const titleMatch = issue.title.match(/^(.*?)\s*\((\d+)\)$/);
+    const newTitle = titleMatch
+      ? `${titleMatch[1]} (${parseInt(titleMatch[2]) + 1})`
+      : `${issue.title} (2)`;
+
+    const { data: keyNum } = await (supabase as any).rpc("get_next_issue_key", { p_project_id: project.id });
+    const issueKey = `${project.key}-${keyNum}`;
+
+    const { data, error } = await supabase.from("issues").insert({
+      key: issueKey,
+      title: newTitle,
+      description: issue.description,
+      type: issue.type,
+      status: issue.status,
+      priority: issue.priority,
+      project_id: project.id,
+      sprint_id: issue.sprint_id,
+      assignee_id: issue.assignee_id,
+      virtual_assignee_id: issue.virtual_assignee_id,
+      reporter_id: userId,
+      parent_id: issue.parent_id,
+      story_points: issue.story_points,
+      start_date: issue.start_date,
+      due_date: issue.due_date,
+      sort_order: Date.now(),
+    } as any).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single();
+
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Duplicated as ${issueKey}`);
+    onDuplicated?.(data as Issue);
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -336,7 +371,10 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
             </button>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={handleDelete} className="text-gray-400 hover:text-red-500">
+            <Button variant="ghost" size="icon" onClick={handleDuplicate} title="Duplicate issue" className="text-gray-400 hover:text-blue-500">
+              <Copy size={15} />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleDelete} title="Delete issue" className="text-gray-400 hover:text-red-500">
               <Trash2 size={15} />
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose}>

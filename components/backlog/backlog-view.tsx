@@ -532,6 +532,7 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
           onClose={closeIssue}
           onUpdated={handleIssueUpdated}
           onDeleted={handleIssueDeleted}
+          onDuplicated={(issue) => { handleIssueCreated(issue); }}
           onNavigate={openIssue}
         />
       )}
