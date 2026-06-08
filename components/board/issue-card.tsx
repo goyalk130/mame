@@ -26,7 +26,7 @@ export function IssueCard({ issue, onClick }: Props) {
     <div
       onClick={onClick}
       className={cn(
-        "rounded-md border px-2.5 py-2 cursor-pointer hover:shadow-sm transition-all group",
+        "rounded-md border px-2.5 py-2 cursor-pointer hover:shadow-sm transition-all group overflow-hidden",
         TIME_STATUS_BG[status],
         status === "normal" && "hover:border-blue-300",
         status === "warning" && "hover:border-yellow-300",
@@ -101,7 +101,7 @@ export function IssueCard({ issue, onClick }: Props) {
       {issue.parent && (issue.parent as any).key && (() => {
         const style = PARENT_TYPE_STYLES[(issue.parent as any).type as IssueType] ?? PARENT_TYPE_STYLES.task;
         return (
-          <div className={cn("mt-2 -mx-2.5 -mb-2 px-2.5 py-1 flex items-center gap-1.5 rounded-b-md", style.bg)}>
+          <div className={cn("mt-2 -mx-2.5 -mb-2 px-2.5 py-1.5 flex items-center gap-1.5", style.bg)}>
             <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot)} />
             <span className={cn("text-[10px] font-medium truncate", style.text)}>
               {(issue.parent as any).key} · {(issue.parent as any).title}
