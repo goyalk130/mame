@@ -52,10 +52,27 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
 
   const { data: issues } = await query;
 
+  // Fetch parent data for issues that have a parent_id (same approach as detail panel)
+  let issuesWithParent = issues || [];
+  const parentIds = [...new Set((issues || []).map(i => i.parent_id).filter(Boolean))] as string[];
+  if (parentIds.length > 0) {
+    const { data: parents } = await supabase
+      .from("issues")
+      .select("id, key, title, type")
+      .in("id", parentIds);
+    if (parents) {
+      const parentMap = Object.fromEntries(parents.map(p => [p.id, p]));
+      issuesWithParent = issuesWithParent.map(i => ({
+        ...i,
+        parent: i.parent_id ? (parentMap[i.parent_id] ?? null) : null,
+      }));
+    }
+  }
+
   return (
     <BoardView
       project={project}
-      initialIssues={issues || []}
+      initialIssues={issuesWithParent}
       members={members}
       virtualMembers={virtualMembers}
       sprintId={sprintId}
