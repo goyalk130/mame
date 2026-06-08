@@ -42,7 +42,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
 
   let query = supabase
     .from("issues")
-    .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
+    .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*), parent:issues!parent_id(id, key, title, type)")
     .eq("project_id", project.id)
     .order("sort_order", { ascending: true });
 

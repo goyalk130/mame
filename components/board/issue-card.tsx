@@ -1,9 +1,17 @@
 "use client";
-import type { Issue } from "@/types";
+import type { Issue, IssueType } from "@/types";
 import { IssueTypeIcon, PriorityIcon } from "@/components/ui/issue-icons";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn, getInitials } from "@/lib/utils";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
+
+const PARENT_TYPE_STYLES: Record<IssueType, { bg: string; text: string; dot: string }> = {
+  epic:    { bg: "bg-purple-50",  text: "text-purple-700", dot: "bg-purple-400" },
+  story:   { bg: "bg-blue-50",    text: "text-blue-700",   dot: "bg-blue-400"   },
+  task:    { bg: "bg-teal-50",    text: "text-teal-700",   dot: "bg-teal-400"   },
+  subtask: { bg: "bg-yellow-50",  text: "text-yellow-700", dot: "bg-yellow-400" },
+  bug:     { bg: "bg-red-50",     text: "text-red-700",    dot: "bg-red-400"    },
+};
 
 interface Props {
   issue: Issue;
@@ -86,6 +94,21 @@ export function IssueCard({ issue, onClick }: Props) {
           {issue.start_date && <span>{issue.start_date}</span>}
           {issue.start_date && issue.due_date && <span>→</span>}
           {issue.due_date && <span>{issue.due_date}</span>}
+        </div>
+      )}
+
+      {/* Parent badge */}
+      {issue.parent && (
+        <div className="mt-2">
+          {(() => {
+            const style = PARENT_TYPE_STYLES[(issue.parent as any).type as IssueType] ?? PARENT_TYPE_STYLES.task;
+            return (
+              <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full", style.bg, style.text)}>
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot)} />
+                <span className="truncate max-w-[140px]">{(issue.parent as any).key} · {(issue.parent as any).title}</span>
+              </span>
+            );
+          })()}
         </div>
       )}
     </div>
