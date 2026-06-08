@@ -288,10 +288,10 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6">
         <h1 className="text-xl font-bold text-gray-900">Backlog</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
 
           {/* Type filter */}
           {(() => {
@@ -450,21 +450,21 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
 
           return (
             <div key={sprint.id} className="mb-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
-              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => toggleCollapse(sprint.id)} className="text-gray-500 hover:text-gray-700">
+              <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-2 min-w-0">
+                  <button onClick={() => toggleCollapse(sprint.id)} className="text-gray-500 hover:text-gray-700 shrink-0">
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </button>
-                  <span className="font-semibold text-gray-900">{sprint.name}</span>
+                  <span className="font-semibold text-gray-900 truncate">{sprint.name}</span>
                   {sprint.status === "active" && (
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Active</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium shrink-0">Active</span>
                   )}
-                  <span className="text-xs text-gray-500">{spIssues.length} issues · {doneCount} done</span>
+                  <span className="hidden sm:block text-xs text-gray-500 shrink-0">{spIssues.length} issues · {doneCount} done</span>
                   {sprint.end_date && (
-                    <span className="text-xs text-gray-400">· Due {format(new Date(sprint.end_date), "MMM d")}</span>
+                    <span className="hidden md:block text-xs text-gray-400 shrink-0">· Due {format(new Date(sprint.end_date), "MMM d")}</span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                   <button
                     onClick={() => openEditSprint(sprint)}
                     className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
@@ -480,16 +480,16 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
                     <Trash2 size={13} />
                   </button>
                   <Button size="sm" variant="ghost" onClick={() => setCreateIssueSprintId(sprint.id)} className="h-7 text-xs gap-1">
-                    <Plus size={12} /> Add issue
+                    <Plus size={12} /><span className="hidden sm:inline">Add issue</span>
                   </Button>
                   {sprint.status === "planned" && (
                     <Button size="sm" onClick={() => startSprint(sprint)} className="h-7 text-xs gap-1">
-                      <Play size={12} /> Start sprint
+                      <Play size={12} /><span className="hidden sm:inline">Start sprint</span>
                     </Button>
                   )}
                   {sprint.status === "active" && (
                     <Button size="sm" variant="outline" onClick={() => completeSprint(sprint)} className="h-7 text-xs gap-1">
-                      <CheckCircle size={12} /> Complete
+                      <CheckCircle size={12} /><span className="hidden sm:inline">Complete</span>
                     </Button>
                   )}
                 </div>
@@ -732,12 +732,12 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
 
           <IssueTypeIcon type={issue.type} />
           <PriorityIcon priority={issue.priority} />
-          <span className="text-xs font-mono text-gray-400 w-20 shrink-0">{issue.key}</span>
+          <span className="hidden sm:block text-xs font-mono text-gray-400 w-20 shrink-0">{issue.key}</span>
           <span className="text-sm text-gray-900 flex-1 min-w-0 truncate">{issue.title}</span>
 
-          {/* Label pills */}
+          {/* Label pills — hidden on mobile */}
           {issue.labels && issue.labels.length > 0 && (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="hidden md:flex items-center gap-1 shrink-0">
               {issue.labels.map((label: Label) => (
                 <span key={label.id} className="text-[9px] font-semibold text-white px-1.5 py-0.5 rounded-full" style={{ background: label.color }}>
                   {label.name}
@@ -755,7 +755,7 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
             const timeStatus = getTimeStatus(issue);
             if (timeInfo) return (
               <span className={cn(
-                "text-xs font-medium px-1.5 py-0.5 rounded shrink-0 flex items-center gap-0.5",
+                "hidden sm:flex text-xs font-medium px-1.5 py-0.5 rounded shrink-0 items-center gap-0.5",
                 timeStatus === "overdue"      ? "bg-red-100 text-red-600" :
                 timeStatus === "warning"      ? "bg-yellow-100 text-yellow-700" :
                 timeStatus === "late_done"    ? "bg-red-50 text-red-400" :
@@ -770,13 +770,13 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
               </span>
             );
             if (issue.story_points != null) return (
-              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{issue.story_points}pt</span>
+              <span className="hidden sm:block text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">{issue.story_points}pt</span>
             );
             return null;
           })()}
 
           {issue.assignee && (
-            <Avatar className="w-5 h-5 shrink-0">
+            <Avatar className="hidden sm:flex w-5 h-5 shrink-0">
               <AvatarFallback className="text-[8px]">
                 {getInitials(issue.assignee.full_name || issue.assignee.email)}
               </AvatarFallback>
@@ -784,7 +784,7 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
           )}
           {!issue.assignee && issue.virtual_assignee && (
             <div
-              className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0"
+              className="hidden sm:flex w-5 h-5 rounded-full items-center justify-center text-white text-[8px] font-bold shrink-0"
               style={{ background: issue.virtual_assignee.color }}
               title={issue.virtual_assignee.name}
             >

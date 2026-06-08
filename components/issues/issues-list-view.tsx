@@ -92,25 +92,24 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-semibold text-gray-900">Issues</h1>
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900">Issues</h1>
           <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
             <Plus size={14} />
-            Create issue
+            <span className="hidden sm:inline">Create issue</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </div>
-
-
 
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-gray-400" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-8 h-8 w-48 text-sm" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="pl-8 h-8 w-36 sm:w-48 text-sm" />
           </div>
           <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-28 sm:w-32 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
               {(Object.entries(TYPE_LABELS) as [IssueType, string][]).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
@@ -152,12 +151,12 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
             <tr>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-24">Key</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Title</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-28">Status</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-24">Priority</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Assignee</th>
-              <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Updated</th>
+              <th className="text-left px-3 sm:px-4 py-2.5 text-xs font-medium text-gray-500 w-16 sm:w-24">Key</th>
+              <th className="text-left px-3 sm:px-4 py-2.5 text-xs font-medium text-gray-500">Title</th>
+              <th className="text-left px-3 sm:px-4 py-2.5 text-xs font-medium text-gray-500 w-24 sm:w-28">Status</th>
+              <th className="hidden sm:table-cell text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-24">Priority</th>
+              <th className="hidden md:table-cell text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Assignee</th>
+              <th className="hidden lg:table-cell text-left px-4 py-2.5 text-xs font-medium text-gray-500 w-32">Updated</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
@@ -172,27 +171,27 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                 onClick={() => openIssue(issue)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1.5">
+                <td className="px-3 sm:px-4 py-2.5">
+                  <div className="flex items-center gap-1">
                     <IssueTypeIcon type={issue.type} />
-                    <span className="font-mono text-xs text-gray-500">{issue.key}</span>
+                    <span className="font-mono text-xs text-gray-500 hidden sm:inline">{issue.key}</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5">
-                  <span className="text-gray-900 line-clamp-1">{issue.title}</span>
+                <td className="px-3 sm:px-4 py-2.5">
+                  <span className="text-gray-900 line-clamp-1 text-xs sm:text-sm">{issue.title}</span>
                 </td>
-                <td className="px-4 py-2.5">
-                  <span className={cn("text-xs px-2 py-0.5 rounded-full", statusBadgeClass(issue.status))}>
+                <td className="px-3 sm:px-4 py-2.5">
+                  <span className={cn("text-xs px-1.5 sm:px-2 py-0.5 rounded-full", statusBadgeClass(issue.status))}>
                     {STATUS_LABELS[issue.status as IssueStatus]}
                   </span>
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="hidden sm:table-cell px-4 py-2.5">
                   <div className="flex items-center gap-1.5">
                     <PriorityIcon priority={issue.priority} />
                     <span className="text-xs text-gray-600">{PRIORITY_LABELS[issue.priority as IssuePriority]}</span>
                   </div>
                 </td>
-                <td className="px-4 py-2.5">
+                <td className="hidden md:table-cell px-4 py-2.5">
                   {issue.assignee ? (
                     <div className="flex items-center gap-1.5">
                       <Avatar className="w-5 h-5">
@@ -213,7 +212,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                     <span className="text-xs text-gray-400">Unassigned</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-xs text-gray-400">
+                <td className="hidden lg:table-cell px-4 py-2.5 text-xs text-gray-400">
                   {formatDistanceToNow(new Date(issue.updated_at), { addSuffix: true })}
                 </td>
               </tr>

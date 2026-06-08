@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb } from "lucide-react";
+import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb, X } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/types";
@@ -13,9 +13,10 @@ interface SidebarProps {
   projects: Project[];
   currentProject?: Project;
   user: { id: string; email: string; full_name?: string | null };
+  onClose?: () => void;
 }
 
-export function Sidebar({ projects, currentProject, user }: SidebarProps) {
+export function Sidebar({ projects, currentProject, user, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -31,15 +32,27 @@ export function Sidebar({ projects, currentProject, user }: SidebarProps) {
   return (
     <aside className={cn("flex flex-col h-full bg-[#1d2125] text-gray-300 transition-all duration-200", collapsed ? "w-14" : "w-56")}>
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-2 px-4 py-3 border-b border-gray-700 hover:bg-gray-700/40 transition-colors">
-        <div className="w-7 h-7 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-sm shrink-0">M</div>
-        {!collapsed && (
-          <div className="flex flex-col leading-tight">
-            <span className="font-semibold text-white text-sm">Mame</span>
-            <span className="text-[9px] text-gray-500">by kirigami arts</span>
-          </div>
+      <div className="flex items-center border-b border-gray-700">
+        <Link href="/" className="flex items-center gap-2 px-4 py-3 hover:bg-gray-700/40 transition-colors flex-1">
+          <div className="w-7 h-7 bg-blue-500 rounded flex items-center justify-center text-white font-bold text-sm shrink-0">M</div>
+          {!collapsed && (
+            <div className="flex flex-col leading-tight">
+              <span className="font-semibold text-white text-sm">Mame</span>
+              <span className="text-[9px] text-gray-500">by kirigami arts</span>
+            </div>
+          )}
+        </Link>
+        {/* Close button — only shown in mobile drawer (onClose provided) */}
+        {onClose && !collapsed && (
+          <button
+            onClick={onClose}
+            className="mr-3 p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+            aria-label="Close menu"
+          >
+            <X size={16} />
+          </button>
         )}
-      </Link>
+      </div>
 
       {/* Project context */}
       {currentProject && (

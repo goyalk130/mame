@@ -92,7 +92,7 @@ export function AccountSettings({ userId, email, fullName }: Props) {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-8 space-y-8">
+    <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
       <div>
         <button
           onClick={() => router.back()}

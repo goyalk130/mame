@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Sidebar } from "@/components/layout/sidebar";
+import { LayoutShell } from "@/components/layout/layout-shell";
 import { getUser, getProfile, getProject, getUserProjects } from "@/lib/data";
 
 export default async function ProjectLayout({
@@ -24,15 +24,12 @@ export default async function ProjectLayout({
   if (!project) redirect("/");
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        projects={allProjects}
-        currentProject={project}
-        user={{ id: user.id, email: user.email!, full_name: profile?.full_name }}
-      />
-      <main className="flex-1 overflow-auto bg-gray-50">
-        {children}
-      </main>
-    </div>
+    <LayoutShell
+      projects={allProjects}
+      currentProject={project}
+      user={{ id: user.id, email: user.email!, full_name: profile?.full_name }}
+    >
+      {children}
+    </LayoutShell>
   );
 }

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProjectsHome } from "@/components/projects/projects-home";
-import { Sidebar } from "@/components/layout/sidebar";
+import { LayoutShell } from "@/components/layout/layout-shell";
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
@@ -20,11 +20,8 @@ export default async function ProjectsPage() {
   ].filter((p, i, arr) => arr.findIndex((x: any) => x.id === p.id) === i);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar projects={allProjects} user={{ id: user.id, email: user.email!, full_name: profile?.full_name }} />
-      <main className="flex-1 overflow-auto bg-gray-50">
-        <ProjectsHome projects={allProjects} userId={user.id} />
-      </main>
-    </div>
+    <LayoutShell projects={allProjects} user={{ id: user.id, email: user.email!, full_name: profile?.full_name }}>
+      <ProjectsHome projects={allProjects} userId={user.id} />
+    </LayoutShell>
   );
 }

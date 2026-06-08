@@ -408,7 +408,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
         className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-3xl bg-white shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-2">
             <IssueTypeIcon type={issue.type} />
             <button
@@ -438,9 +438,9 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="flex gap-0">
+          <div className="flex flex-col md:flex-row gap-0">
             {/* Main content */}
-            <div className="flex-1 px-6 py-5 min-w-0">
+            <div className="flex-1 px-4 sm:px-6 py-4 sm:py-5 min-w-0">
 
               {/* Parent breadcrumb */}
               {parentIssue && (
@@ -688,7 +688,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
             </div>
 
             {/* Sidebar fields */}
-            <div className="w-56 shrink-0 border-l border-gray-100 px-4 py-5 space-y-5 bg-gray-50">
+            <div className="md:w-56 shrink-0 border-t md:border-t-0 md:border-l border-gray-100 px-4 py-4 md:py-5 space-y-4 md:space-y-5 bg-gray-50">
 
               {/* Time tracking summary */}
               {(() => {

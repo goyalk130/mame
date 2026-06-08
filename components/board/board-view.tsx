@@ -236,24 +236,31 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-gray-900">
-                {project.type === "scrum" ? "Board" : "Kanban Board"}
-              </h1>
-              {project.type === "scrum" && sprintName && (
-                <span className="text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
-                  {sprintName}
-                </span>
+      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 shrink-0">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-semibold text-gray-900">
+                  {project.type === "scrum" ? "Board" : "Kanban Board"}
+                </h1>
+                {project.type === "scrum" && sprintName && (
+                  <span className="hidden sm:inline-block text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full max-w-[160px] truncate">
+                    {sprintName}
+                  </span>
+                )}
+              </div>
+              {project.type === "scrum" && !sprintId && (
+                <p className="text-xs text-orange-500 mt-0.5">No active sprint. Start one from Backlog.</p>
               )}
             </div>
-            {project.type === "scrum" && !sprintId && (
-              <p className="text-sm text-orange-500 mt-0.5">No active sprint. Start a sprint from the Backlog.</p>
-            )}
+            {/* Create button on mobile — shown inline with title */}
+            <Button size="sm" onClick={() => setCreateColumn("todo")} className="sm:hidden gap-1">
+              <Plus size={13} />
+              New
+            </Button>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Person filter dropdown */}
             <div className="relative">
               <button
@@ -369,10 +376,10 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search issues..."
-                className="pl-8 w-56 h-8 text-sm"
+                className="pl-8 w-full sm:w-48 h-8 text-sm"
               />
             </div>
-            <Button size="sm" onClick={() => setCreateColumn("todo")} className="gap-1.5">
+            <Button size="sm" onClick={() => setCreateColumn("todo")} className="hidden sm:flex gap-1.5">
               <Plus size={14} />
               Create issue
             </Button>

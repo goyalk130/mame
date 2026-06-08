@@ -267,28 +267,30 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
   return (
     <div className="flex flex-col h-full">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-3">
-          <Lightbulb size={20} className="text-yellow-500" />
-          <h1 className="text-lg font-semibold text-gray-900">Ideas</h1>
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{openCount} open</span>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-white gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Lightbulb size={18} className="text-yellow-500 shrink-0" />
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900">Ideas</h1>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">{openCount} open</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {selectedOpen.length > 0 && (
             <button
               onClick={() => openConvert(selectedOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors"
             >
-              <ArrowRightCircle size={15} />
-              Convert {selectedOpen.length} to Triage
+              <ArrowRightCircle size={14} />
+              <span className="hidden sm:inline">Convert {selectedOpen.length} to Triage</span>
+              <span className="sm:hidden">{selectedOpen.length} → Triage</span>
             </button>
           )}
           <button
             onClick={openCreate}
-            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+            className="relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs sm:text-sm font-medium hover:bg-gray-700 transition-colors"
           >
-            <Plus size={15} />
-            New Idea
+            <Plus size={14} />
+            <span className="hidden sm:inline">New Idea</span>
+            <span className="sm:hidden">New</span>
             {hasDraft && (
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-yellow-400 rounded-full border-2 border-white" title="Unsaved draft restored" />
             )}
@@ -297,7 +299,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
       </div>
 
       {/* ── Filter tabs ── */}
-      <div className="flex items-center gap-1 px-6 py-2 border-b border-gray-100 bg-white">
+      <div className="flex items-center gap-1 px-4 sm:px-6 py-2 border-b border-gray-100 bg-white overflow-x-auto">
         {(["all", "open", "converted"] as Filter[]).map((f) => (
           <button
             key={f}
@@ -324,7 +326,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
       </div>
 
       {/* ── Ideas list ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400">
             <Lightbulb size={40} className="mb-3 text-gray-300" />

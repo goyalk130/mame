@@ -192,8 +192,8 @@ export function ProjectSettings({ project, members: initialMembers, userId }: Pr
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
-      <h1 className="text-xl font-bold text-gray-900 mb-8">Project Settings</h1>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <h1 className="text-xl font-bold text-gray-900 mb-6 sm:mb-8">Project Settings</h1>
 
       {/* General settings */}
       <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
