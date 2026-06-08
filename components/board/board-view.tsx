@@ -128,21 +128,21 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
     return true;
   });
 
-  // Auto-scroll while dragging near left/right edges
+  // Auto-scroll while dragging near left/right edges (mouse + touch)
   useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
+    function handleMove(clientX: number) {
       if (!draggingRef.current || !scrollRef.current) return;
       const container = scrollRef.current;
       const rect = container.getBoundingClientRect();
-      const threshold = 100;
-      const maxSpeed = 18;
+      const threshold = 80;
+      const maxSpeed = 20;
 
       cancelAnimationFrame(rafRef.current!);
 
       const scroll = () => {
         if (!draggingRef.current || !scrollRef.current) return;
-        const distLeft = e.clientX - rect.left;
-        const distRight = rect.right - e.clientX;
+        const distLeft = clientX - rect.left;
+        const distRight = rect.right - clientX;
 
         if (distLeft < threshold) {
           const speed = Math.round(maxSpeed * (1 - distLeft / threshold));
@@ -157,9 +157,16 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
       rafRef.current = requestAnimationFrame(scroll);
     }
 
+    function onMouseMove(e: MouseEvent) { handleMove(e.clientX); }
+    function onTouchMove(e: TouchEvent) {
+      if (e.touches.length > 0) handleMove(e.touches[0].clientX);
+    }
+
     window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("touchmove", onTouchMove);
       cancelAnimationFrame(rafRef.current!);
     };
   }, []);
