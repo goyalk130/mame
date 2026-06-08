@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BacklogView } from "@/components/backlog/backlog-view";
 import { getUser, getProject, getProjectMembers, getVirtualMembers, getProjectSprints } from "@/lib/data";
@@ -10,7 +10,7 @@ export default async function BacklogPage({ params }: { params: Promise<{ key: s
   if (!user) redirect("/login");
 
   const project = await getProject(key);
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   // All parallel — issues is the only non-cached query (always fresh)
   const supabase = await createClient();

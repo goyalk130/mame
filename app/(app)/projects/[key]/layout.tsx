@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { getUser, getProfile, getProject, getUserProjects } from "@/lib/data";
 
@@ -21,7 +21,7 @@ export default async function ProjectLayout({
     getUserProjects(user.id),
   ]);
 
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   return (
     <div className="flex h-screen overflow-hidden">

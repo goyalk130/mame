@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { ProjectSettings } from "@/components/projects/project-settings";
 import { getUser, getProject, getProjectMembers } from "@/lib/data";
 
@@ -13,7 +13,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ key: 
     getProject(key).then((p) => p ? getProjectMembers(p.id, p.owner_id) : []),
   ]);
 
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   return <ProjectSettings project={project} members={members} userId={user.id} />;
 }

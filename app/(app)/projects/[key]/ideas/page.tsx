@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { IdeasView } from "@/components/ideas/ideas-view";
 import { getUser, getProject, getActiveSprint } from "@/lib/data";
@@ -10,7 +10,7 @@ export default async function IdeasPage({ params }: { params: Promise<{ key: str
   if (!user) redirect("/login");
 
   const project = await getProject(key);
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   const activeSprint = await getActiveSprint(project.id);
 

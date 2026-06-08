@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BoardView } from "@/components/board/board-view";
 import { getUser, getProject, getProjectMembers, getVirtualMembers, getProjectSprints, getActiveSprint } from "@/lib/data";
@@ -10,7 +10,7 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
   if (!user) redirect("/login");
 
   const project = await getProject(key);
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   // Cached helpers + issues in parallel
   const supabase = await createClient();

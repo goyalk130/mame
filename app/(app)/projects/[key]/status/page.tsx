@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { StatusView } from "@/components/status/status-view";
 import { getUser, getProject, getProjectMembers, getVirtualMembers } from "@/lib/data";
@@ -10,7 +10,7 @@ export default async function StatusPage({ params }: { params: Promise<{ key: st
   if (!user) redirect("/login");
 
   const project = await getProject(key);
-  if (!project) notFound();
+  if (!project) redirect("/");
 
   const supabase = await createClient();
   const [members, virtualMembers, issuesRes] = await Promise.all([
