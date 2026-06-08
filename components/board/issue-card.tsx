@@ -49,16 +49,22 @@ export function IssueCard({ issue, onClick }: Props) {
           {timeInfo ? (
             <span className={cn(
               "text-[10px] font-medium px-1 py-0.5 rounded-full flex items-center gap-0.5",
-              status === "overdue" ? "bg-red-100 text-red-600" :
-              status === "warning" ? "bg-yellow-100 text-yellow-700" :
+              status === "overdue"      ? "bg-red-100 text-red-600" :
+              status === "warning"      ? "bg-yellow-100 text-yellow-700" :
+              status === "late_done"    ? "bg-red-50 text-red-400" :
+              status === "on_time_done" ? "bg-green-50 text-green-600" :
               "bg-gray-100 text-gray-500"
             )}>
-              {timeInfo.pts}pt
-              {status === "overdue" && (
-                <span className="font-bold text-red-500"> +{timeInfo.overflow}d</span>
-              )}
-              {status === "warning" && (
-                <span className="text-yellow-600"> {timeInfo.remaining}d left</span>
+              {status === "late_done" ? (
+                <>✓ {timeInfo.daysLate}d late</>
+              ) : status === "on_time_done" ? (
+                <>✓ on time</>
+              ) : status === "overdue" ? (
+                <>{timeInfo.pts}pt +{timeInfo.daysOverdue}d</>
+              ) : status === "warning" ? (
+                <>{timeInfo.pts}pt · {timeInfo.daysLeft}d left</>
+              ) : (
+                <>{timeInfo.pts}pt</>
               )}
             </span>
           ) : issue.story_points != null ? (

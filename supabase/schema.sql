@@ -70,7 +70,9 @@ create table if not exists issues (
   parent_id uuid references issues(id) on delete set null,
   virtual_assignee_id uuid references virtual_members(id) on delete set null,
   story_points integer,
+  start_date date,
   due_date date,
+  completed_at timestamptz,
   sort_order bigint default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -320,3 +322,7 @@ do $$ begin
     foreign key (created_by) references public.profiles(id) on delete set null;
 exception when others then null;
 end $$;
+
+-- Add completed_at and start_date to issues (migration for existing DBs)
+alter table public.issues add column if not exists completed_at timestamptz;
+alter table public.issues add column if not exists start_date date;

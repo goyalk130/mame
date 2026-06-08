@@ -1,53 +1,78 @@
 import type { Issue } from "@/types";
 
-export type TimeStatus = "overdue" | "warning" | "normal";
+export type TimeStatus = "overdue" | "warning" | "normal" | "late_done" | "on_time_done";
 
-/**
- * Compare days elapsed since start_date against story_points budget.
- *
- * - "overdue"  → elapsed > story_points  (pastel red)
- * - "warning"  → elapsed >= story_points * 0.75  (pastel yellow)
- * - "normal"   → fine, no tint
- *
- * Returns "normal" for done issues or when start_date / story_points are missing.
- */
+const DONE_STATUSES = ["done", "completed"] as const;
+
 export function getTimeStatus(issue: Issue): TimeStatus {
-  if (!issue.start_date || !issue.story_points || issue.status === "done") return "normal";
-  const elapsed = daysElapsed(issue.start_date);
-  if (elapsed > issue.story_points) return "overdue";
-  if (elapsed >= issue.story_points * 0.75) return "warning";
+  const isDone = DONE_STATUSES.includes(issue.status as any);
+
+  if (isDone) {
+    if (!issue.completed_at || !issue.due_date) return "normal";
+    return dateOnly(issue.completed_at) > dateOnly(issue.due_date) ? "late_done" : "on_time_done";
+  }
+
+  if (!issue.due_date) return "normal";
+
+  const today = todayDate();
+  const due = dateOnly(issue.due_date);
+
+  // Past due date → overdue
+  if (today > due) return "overdue";
+
+  // Not enough time left vs story points estimate → warning
+  if (issue.story_points) {
+    const daysLeft = Math.floor((due.getTime() - today.getTime()) / 86_400_000);
+    if (daysLeft < issue.story_points) return "warning";
+  }
+
   return "normal";
 }
 
-/**
- * Returns { pts, overflow, remaining } for rendering.
- * overflow > 0  → days over budget (show in red)
- * remaining > 0 → days left in budget
- */
 export function getTimeInfo(issue: Issue): {
   pts: number;
-  overflow: number;
-  remaining: number;
-  elapsed: number;
+  daysOverdue: number;
+  daysLeft: number;
+  daysLate?: number;
 } | null {
-  if (!issue.start_date || !issue.story_points) return null;
-  const elapsed = daysElapsed(issue.start_date);
-  const overflow = elapsed - issue.story_points;
-  const remaining = issue.story_points - elapsed;
-  return { pts: issue.story_points, overflow, remaining, elapsed };
+  const isDone = DONE_STATUSES.includes(issue.status as any);
+
+  if (isDone && issue.completed_at && issue.due_date) {
+    const completedDay = dateOnly(issue.completed_at);
+    const dueDay = dateOnly(issue.due_date);
+    const daysLate = Math.floor((completedDay.getTime() - dueDay.getTime()) / 86_400_000);
+    return { pts: issue.story_points ?? 0, daysOverdue: 0, daysLeft: 0, daysLate };
+  }
+
+  if (!issue.due_date) return issue.story_points != null ? { pts: issue.story_points, daysOverdue: 0, daysLeft: 0 } : null;
+
+  const today = todayDate();
+  const due = dateOnly(issue.due_date);
+  const diff = Math.floor((due.getTime() - today.getTime()) / 86_400_000);
+
+  return {
+    pts: issue.story_points ?? 0,
+    daysOverdue: diff < 0 ? -diff : 0,
+    daysLeft: diff > 0 ? diff : 0,
+  };
 }
 
-function daysElapsed(dateStr: string): number {
-  const start = new Date(dateStr);
-  start.setHours(0, 0, 0, 0);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return Math.floor((today.getTime() - start.getTime()) / 86_400_000);
+function dateOnly(dateStr: string): Date {
+  const d = new Date(dateStr);
+  d.setHours(0, 0, 0, 0);
+  return d;
 }
 
-/** Tailwind classes for card/row background tint */
+function todayDate(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export const TIME_STATUS_BG: Record<TimeStatus, string> = {
-  overdue: "bg-red-50 border-red-200",
-  warning: "bg-yellow-50 border-yellow-200",
-  normal:  "bg-white border-gray-200",
+  overdue:      "bg-red-50 border-red-200",
+  warning:      "bg-yellow-50 border-yellow-200",
+  normal:       "bg-white border-gray-200",
+  late_done:    "bg-white border-gray-200",
+  on_time_done: "bg-white border-gray-200",
 };

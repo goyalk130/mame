@@ -185,9 +185,8 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 
     toast.success(`Linked to ${parent.key}`);
     setLinkParentOpen(false);
-    // Re-fetch parent fresh from DB to ensure consistency
-    await fetchParentFresh();
-    const updated = { ...issue, parent_id: parent.id };
+    setParentIssue(parent);
+    const updated = { ...issue, parent_id: parent.id, parent };
     setIssue(updated as Issue);
     onUpdated(updated as Issue);
   }
@@ -202,7 +201,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     });
     toast.success("Parent unlinked");
     setParentIssue(null);
-    const updated = { ...issue, parent_id: null };
+    const updated = { ...issue, parent_id: null, parent: null };
     setIssue(updated as Issue);
     onUpdated(updated as Issue);
   }
@@ -248,10 +247,28 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     await fetchActivity(activityPage + 1);
   }
 
+  const DONE_STATUSES: IssueStatus[] = ["done", "completed"];
+
   async function updateField(field: string, value: any, displayOld?: string, displayNew?: string) {
+    const payload: Record<string, any> = { [field]: value, updated_at: new Date().toISOString() };
+
+    if (field === "status") {
+      const newStatus = value as IssueStatus;
+      const wasDone = DONE_STATUSES.includes(issue.status);
+      const isDone = DONE_STATUSES.includes(newStatus);
+      if (isDone && !wasDone) {
+        // Entering done for the first time — stamp it
+        payload.completed_at = new Date().toISOString();
+      } else if (!isDone) {
+        // Moving back to active — clear the stamp
+        payload.completed_at = null;
+      }
+      // done ↔ completed: no change to completed_at
+    }
+
     const { data, error } = await supabase
       .from("issues")
-      .update({ [field]: value, updated_at: new Date().toISOString() })
+      .update(payload)
       .eq("id", issue.id)
       .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*)")
       .single();

@@ -168,14 +168,21 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
     const issue = issues.find((i) => i.id === draggableId);
     if (!issue) return;
 
+    const DONE_STATUSES: IssueStatus[] = ["done", "completed"];
+    const wasDone = DONE_STATUSES.includes(issue.status);
+    const isDone = DONE_STATUSES.includes(newStatus);
+    const completedAtUpdate: Record<string, any> = {};
+    if (isDone && !wasDone) completedAtUpdate.completed_at = new Date().toISOString();
+    else if (!isDone) completedAtUpdate.completed_at = null;
+
     setIssues((prev) =>
-      prev.map((i) => i.id === draggableId ? { ...i, status: newStatus, sort_order: destination.index } : i)
+      prev.map((i) => i.id === draggableId ? { ...i, status: newStatus, sort_order: destination.index, ...completedAtUpdate } : i)
     );
 
     const supabase = createClient();
     const { error } = await supabase
       .from("issues")
-      .update({ status: newStatus, sort_order: destination.index, updated_at: new Date().toISOString() })
+      .update({ status: newStatus, sort_order: destination.index, updated_at: new Date().toISOString(), ...completedAtUpdate })
       .eq("id", draggableId);
 
     if (error) {
