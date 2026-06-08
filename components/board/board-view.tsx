@@ -208,8 +208,8 @@ export function BoardView({ project, initialIssues, members, virtualMembers = []
       setSelectedIssue(null);
       closeIssue();
     } else {
-      setIssues((prev) => prev.map((i) => i.id === updated.id ? updated : i));
-      setSelectedIssue(updated);
+      setIssues((prev) => prev.map((i) => i.id === updated.id ? { ...updated, parent: updated.parent ?? i.parent } : i));
+      setSelectedIssue((prev) => prev ? { ...updated, parent: updated.parent ?? prev.parent } : updated);
     }
   }
 
