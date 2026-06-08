@@ -134,8 +134,11 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
       if (!draggingRef.current || !scrollRef.current) return;
       const container = scrollRef.current;
       const rect = container.getBoundingClientRect();
-      const threshold = 80;
-      const maxSpeed = 20;
+      // Larger threshold + speed on narrow (mobile) screens so the column
+      // scrolls well past the edge before the user lifts their finger
+      const isMobile = rect.width < 640;
+      const threshold = isMobile ? 140 : 80;
+      const maxSpeed  = isMobile ? 28  : 20;
 
       cancelAnimationFrame(rafRef.current!);
 
@@ -400,9 +403,11 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
           onDragStart={() => { draggingRef.current = true; }}
           onDragEnd={onDragEnd}
         >
-          <div className="flex gap-3 h-full min-h-0" style={{ minWidth: "max-content" }}>
+          {/* pr-[40vw] gives a big trailing gap on mobile so the last column
+              is never flush against the right edge — finger has room to land */}
+          <div className="flex gap-3 h-full min-h-0 pr-[40vw] sm:pr-4" style={{ minWidth: "max-content" }}>
             {COLUMN_GROUPS.map((group, gi) => (
-              <div key={gi} className="w-72 flex flex-col gap-2 min-h-0 max-h-full">
+              <div key={gi} className="w-60 sm:w-72 flex flex-col gap-2 min-h-0 max-h-full">
                 {group.sections.map((sec, si) => {
                   const sectionIssues = filtered.filter((i) => i.status === sec.id);
                   return (
