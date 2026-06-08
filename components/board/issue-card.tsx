@@ -6,11 +6,11 @@ import { cn, getInitials } from "@/lib/utils";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 
 const PARENT_TYPE_STYLES: Record<IssueType, { bg: string; text: string; dot: string }> = {
-  epic:    { bg: "bg-purple-50",  text: "text-purple-700", dot: "bg-purple-400" },
-  story:   { bg: "bg-blue-50",    text: "text-blue-700",   dot: "bg-blue-400"   },
-  task:    { bg: "bg-teal-50",    text: "text-teal-700",   dot: "bg-teal-400"   },
-  subtask: { bg: "bg-yellow-50",  text: "text-yellow-700", dot: "bg-yellow-400" },
-  bug:     { bg: "bg-red-50",     text: "text-red-700",    dot: "bg-red-400"    },
+  epic:    { bg: "bg-purple-50",  text: "text-purple-700", dot: "bg-purple-500" },
+  story:   { bg: "bg-green-50",   text: "text-green-700",  dot: "bg-green-500"  },
+  task:    { bg: "bg-blue-50",    text: "text-blue-700",   dot: "bg-blue-500"   },
+  subtask: { bg: "bg-gray-100",   text: "text-gray-600",   dot: "bg-gray-400"   },
+  bug:     { bg: "bg-red-50",     text: "text-red-700",    dot: "bg-red-500"    },
 };
 
 interface Props {
