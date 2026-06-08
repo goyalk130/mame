@@ -42,12 +42,12 @@ export function CreateIssueDialog({
   useEffect(() => {
     if (parentId) return; // already set externally
     const supabase = createClient();
-    let parentType: IssueType | null = null;
-    if (type === "story") parentType = "epic";
-    else if (type === "task" || type === "bug") parentType = "story";
-    else if (type === "subtask") parentType = "task";
-    if (!parentType) { setParentOptions([]); setSelectedParentId("none"); return; }
-    supabase.from("issues").select("id, key, title, type").eq("project_id", projectId).eq("type", parentType).order("created_at", { ascending: false }).limit(50)
+    let parentTypes: IssueType[] = [];
+    if (type === "story") parentTypes = ["epic"];
+    else if (type === "task" || type === "bug") parentTypes = ["story", "epic"];
+    else if (type === "subtask") parentTypes = ["task"];
+    if (!parentTypes.length) { setParentOptions([]); setSelectedParentId("none"); return; }
+    supabase.from("issues").select("id, key, title, type").eq("project_id", projectId).in("type", parentTypes).order("type").order("created_at", { ascending: false }).limit(50)
       .then(({ data }) => setParentOptions((data as Issue[]) || []));
   }, [type, projectId, parentId]);
 
@@ -165,7 +165,7 @@ export function CreateIssueDialog({
           {!parentId && parentOptions.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {type === "story" ? "Link to Epic" : type === "subtask" ? "Parent Task" : "Parent Story"}
+                {type === "story" ? "Link to Epic" : type === "subtask" ? "Parent Task" : "Parent Story / Epic"}
               </label>
               <Select value={selectedParentId} onValueChange={setSelectedParentId}>
                 <SelectTrigger className="text-sm"><SelectValue placeholder="None (standalone)" /></SelectTrigger>
@@ -173,6 +173,7 @@ export function CreateIssueDialog({
                   <SelectItem value="none">None (standalone)</SelectItem>
                   {parentOptions.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
+                      <span className={`font-mono text-xs mr-1 ${p.type === "epic" ? "text-purple-500" : "text-green-500"}`}>[{p.type === "epic" ? "E" : "S"}]</span>
                       <span className="font-mono text-xs text-gray-400 mr-1">{p.key}</span> {p.title}
                     </SelectItem>
                   ))}
