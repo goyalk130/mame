@@ -104,6 +104,7 @@ const s = StyleSheet.create({
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+export interface PdfLabel { id: string; name: string; color: string; }
 export interface PdfIssue {
   id: string; key: string; title: string; type: string; status: string;
   priority: string; assignee_id: string | null; virtual_assignee_id: string | null;
@@ -112,6 +113,7 @@ export interface PdfIssue {
   description?: string | null;
   assignee?: { full_name?: string; email?: string } | null;
   virtual_assignee?: { name: string; color: string } | null;
+  labels?: PdfLabel[];
 }
 export interface PdfSprint { id: string; name: string; status: string; start_date?: string | null; end_date?: string | null; goal?: string | null; }
 export interface PdfMember { user_id: string; profile?: { full_name?: string; email?: string } | null; }
@@ -123,6 +125,7 @@ export interface ProjectPdfData {
   sprints: PdfSprint[];
   members: PdfMember[];
   virtualMembers: PdfVirtualMember[];
+  labels?: PdfLabel[];
   exportedAt: string;
 }
 
@@ -145,6 +148,16 @@ function fmtDate(d?: string | null) {
   try { return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
   catch { return "—"; }
 }
+/** Extract a usable solid hex from a color string (gradient → first hex found, else fallback) */
+function solidColor(color: string): string {
+  if (!color) return C.gray;
+  if (color.startsWith("linear-gradient") || color.startsWith("radial-gradient")) {
+    const match = color.match(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/);
+    return match ? match[0] : C.purple;
+  }
+  return color;
+}
+
 function stripHtml(html?: string | null): string {
   if (!html) return "";
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -273,6 +286,14 @@ function IssueRowPdf({ issue }: { issue: PdfIssue }) {
         {issue.story_points != null && (
           <Badge label={`${issue.story_points} pts`} color={C.gray} />
         )}
+        {issue.labels?.map((l) => {
+          const lc = solidColor(l.color);
+          return (
+            <View key={l.id} style={[s.badge, { backgroundColor: lc + "30", borderWidth: 1, borderColor: lc + "80" }]}>
+              <Text style={[s.badgeTxt, { color: lc }]}>{l.name}</Text>
+            </View>
+          );
+        })}
       </View>
 
       {/* ── Row 3: description (optional) ── */}
@@ -365,6 +386,16 @@ export function ProjectPdfDocument({ data }: { data: ProjectPdfData }) {
   const userEntries = Object.entries(userMap).filter(([, v]) => v.issues.length > 0).sort((a, b) => b[1].issues.length - a[1].issues.length);
 
   const backlogIssues = issues.filter((i) => !i.sprint_id);
+
+  // Label breakdown
+  const projectLabels = data.labels || [];
+  const labelCounts: Record<string, number> = {};
+  issues.forEach((i) => i.labels?.forEach((l) => { labelCounts[l.id] = (labelCounts[l.id] || 0) + 1; }));
+  const labelChartData = projectLabels
+    .filter((l) => labelCounts[l.id] > 0)
+    .map((l) => ({ label: l.name, value: labelCounts[l.id], color: solidColor(l.color) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 12);
 
   return (
     <Document title={`${project.name} — Export`} author="Mame">
@@ -465,6 +496,20 @@ export function ProjectPdfDocument({ data }: { data: ProjectPdfData }) {
           <View style={[s.sectionBar, { backgroundColor: C.teal }]} />
           <Text style={s.sectionTitle}>Team at a Glance</Text>
         </View>
+        {/* By Label chart */}
+        {labelChartData.length > 0 && (
+          <>
+            <View style={[s.sectionHeader, { marginTop: 12 }]}>
+              <View style={[s.sectionBar, { backgroundColor: C.orange }]} />
+              <Text style={s.sectionTitle}>By Label</Text>
+              <Text style={s.sectionSubtitle}>· issues tagged with each label</Text>
+            </View>
+            <View style={[s.card, { marginBottom: 10 }]}>
+              <HBarChart data={labelChartData} />
+            </View>
+          </>
+        )}
+
         <View style={s.row3}>
           {userEntries.slice(0, 6).map(([key, ud]) => {
             const done = ud.issues.filter((i) => i.status === "done" || i.status === "completed").length;

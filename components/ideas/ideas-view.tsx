@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Idea, Project, Sprint } from "@/types";
-import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X } from "lucide-react";
+import { Lightbulb, Plus, ArrowRightCircle, Trash2, CheckSquare, Square, AlertTriangle, X, Pencil, Lock } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import toast from "react-hot-toast";
 import { formatDistanceToNow } from "date-fns";
@@ -84,6 +84,48 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Full-screen idea viewer / editor
+  const [viewingIdea, setViewingIdea] = useState<Idea | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  function openIdea(idea: Idea) {
+    setViewingIdea(idea);
+    setEditMode(false);
+    setEditTitle(idea.title);
+    setEditDesc(idea.description || "");
+  }
+
+  function closeIdea() {
+    setViewingIdea(null);
+    setEditMode(false);
+  }
+
+  function enterEdit() {
+    if (!viewingIdea) return;
+    setEditTitle(viewingIdea.title);
+    setEditDesc(viewingIdea.description || "");
+    setEditMode(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!viewingIdea || !editTitle.trim()) return;
+    setEditSaving(true);
+    const { error } = await (supabase as any)
+      .from("ideas")
+      .update({ title: editTitle.trim(), description: editDesc.trim() || null })
+      .eq("id", viewingIdea.id);
+    if (error) { toast.error(error.message); setEditSaving(false); return; }
+    const updated = { ...viewingIdea, title: editTitle.trim(), description: editDesc.trim() || null };
+    setIdeas((prev) => prev.map((i) => i.id === viewingIdea.id ? updated : i));
+    setViewingIdea(updated);
+    setEditMode(false);
+    setEditSaving(false);
+    toast.success("Idea updated");
+  }
 
   const filtered = useMemo(() => {
     if (filter === "open") return ideas.filter((i) => !i.converted);
@@ -193,6 +235,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
     if (error) { toast.error(error.message); setDeleting(false); return; }
     setIdeas((prev) => prev.filter((i) => i.id !== deleteId));
     setSelected((prev) => { const s = new Set(prev); s.delete(deleteId); return s; });
+    if (viewingIdea?.id === deleteId) closeIdea();
     setDeleteId(null);
     setDeleting(false);
     toast.success("Idea deleted");
@@ -299,6 +342,7 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
                 onToggle={() => toggleSelect(idea.id)}
                 onConvert={() => openConvert([idea.id])}
                 onDelete={() => setDeleteId(idea.id)}
+                onOpen={() => openIdea(idea)}
                 userId={userId}
               />
             ))}
@@ -424,6 +468,124 @@ export function IdeasView({ project, initialIdeas, activeSprint, userId }: Ideas
         </Modal>
       )}
 
+      {/* ── Full-screen Idea Viewer / Editor ── */}
+      {viewingIdea && (() => {
+        const isOwner = viewingIdea.created_by === userId;
+        const creatorName = (viewingIdea.creator as any)?.full_name || (viewingIdea.creator as any)?.email || "Unknown";
+        const timeAgo = formatDistanceToNow(new Date(viewingIdea.created_at), { addSuffix: true });
+        return (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white shrink-0">
+              <div className="flex items-center gap-3">
+                <Lightbulb size={20} className="text-yellow-500" />
+                <span className="font-semibold text-gray-900">{editMode ? "Editing Idea" : "Idea"}</span>
+                {viewingIdea.converted && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                    Converted
+                  </span>
+                )}
+                {!isOwner && (
+                  <span className="flex items-center gap-1 text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <Lock size={10} />
+                    Read only
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {isOwner && !editMode && (
+                  <>
+                    <button
+                      onClick={enterEdit}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                    >
+                      <Pencil size={13} />
+                      Edit
+                    </button>
+                    {!viewingIdea.converted && (
+                      <button
+                        onClick={() => { closeIdea(); setDeleteId(viewingIdea.id); }}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete idea"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </>
+                )}
+                {editMode && (
+                  <>
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="px-4 py-1.5 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={!editTitle.trim() || editSaving}
+                      className="px-4 py-1.5 text-sm rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {editSaving ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={closeIdea}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-8 py-8 max-w-4xl mx-auto w-full">
+              {/* Title */}
+              {editMode ? (
+                <input
+                  autoFocus
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+                  className="w-full text-3xl font-bold text-gray-900 placeholder-gray-300 border-none outline-none bg-transparent mb-6"
+                />
+              ) : (
+                <h1 className="text-3xl font-bold text-gray-900 mb-4 leading-snug">{viewingIdea.title}</h1>
+              )}
+
+              {/* Meta */}
+              <div className="flex items-center gap-2 mb-6 pb-6 border-b border-gray-100">
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                  {getInitials(creatorName)}
+                </div>
+                <span className="text-sm text-gray-600 font-medium">{creatorName}</span>
+                <span className="text-gray-300">·</span>
+                <span className="text-sm text-gray-400">{timeAgo}</span>
+              </div>
+
+              {/* Description */}
+              {editMode ? (
+                <RichEditor
+                  key="edit-mode"
+                  content={editDesc}
+                  onChange={setEditDesc}
+                  placeholder="Describe your idea in detail…"
+                  borderless
+                />
+              ) : viewingIdea.description?.trim() ? (
+                <div
+                  className="prose prose-sm max-w-none text-gray-700 [&_p]:my-2 [&_ul]:my-2 [&_ol]:my-2"
+                  dangerouslySetInnerHTML={{ __html: viewingIdea.description }}
+                />
+              ) : (
+                <p className="text-gray-400 italic text-sm">No description added.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Delete Confirm Modal ── */}
       {deleteId && (
         <Modal onClose={() => !deleting && setDeleteId(null)}>
@@ -460,6 +622,7 @@ function IdeaCard({
   onToggle,
   onConvert,
   onDelete,
+  onOpen,
   userId,
 }: {
   idea: Idea;
@@ -467,13 +630,14 @@ function IdeaCard({
   onToggle: () => void;
   onConvert: () => void;
   onDelete: () => void;
+  onOpen: () => void;
   userId: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const hasDesc = !!idea.description?.trim();
   const creatorName = (idea.creator as any)?.full_name || (idea.creator as any)?.email || "Unknown";
   const initials = getInitials(creatorName);
   const timeAgo = formatDistanceToNow(new Date(idea.created_at), { addSuffix: true });
+  const isOwner = idea.created_by === userId;
 
   return (
     <div
@@ -496,10 +660,15 @@ function IdeaCard({
         {/* Bulb icon */}
         <Lightbulb size={16} className={cn("mt-0.5 shrink-0", idea.converted ? "text-gray-400" : "text-yellow-500")} />
 
-        {/* Content */}
+        {/* Content — clicking title/desc area opens full screen */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-medium text-gray-900 leading-snug">{idea.title}</p>
+            <button
+              onClick={onOpen}
+              className="text-sm font-medium text-gray-900 leading-snug text-left hover:text-blue-600 transition-colors"
+            >
+              {idea.title}
+            </button>
             {idea.converted ? (
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                 Converted
@@ -514,7 +683,7 @@ function IdeaCard({
                   <ArrowRightCircle size={12} />
                   Convert
                 </button>
-                {idea.created_by === userId && (
+                {isOwner && (
                   <button
                     onClick={onDelete}
                     title="Delete idea"
@@ -527,24 +696,22 @@ function IdeaCard({
             )}
           </div>
 
-          {/* Description */}
+          {/* Description preview — click to open full screen */}
           {hasDesc && (
-            <div className="mt-1">
-              <div className={cn("text-xs leading-relaxed overflow-hidden", !expanded && "max-h-12")}>
+            <button
+              onClick={onOpen}
+              className="mt-1 w-full text-left"
+            >
+              <div className="max-h-12 overflow-hidden">
                 <div
-                  className="prose prose-xs max-w-none text-gray-500 [&_*]:text-xs [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0"
+                  className="prose prose-xs max-w-none text-gray-500 [&_*]:text-xs [&_p]:my-0 [&_ul]:my-0 [&_ol]:my-0 pointer-events-none"
                   dangerouslySetInnerHTML={{ __html: idea.description! }}
                 />
               </div>
               {idea.description && idea.description.replace(/<[^>]*>/g, "").length > 120 && (
-                <button
-                  onClick={() => setExpanded((v) => !v)}
-                  className="text-[11px] text-blue-500 hover:underline mt-0.5"
-                >
-                  {expanded ? "Show less" : "Show more"}
-                </button>
+                <span className="text-[11px] text-blue-500 mt-0.5 inline-block">Read more…</span>
               )}
-            </div>
+            </button>
           )}
 
           {/* Meta */}

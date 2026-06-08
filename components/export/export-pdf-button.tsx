@@ -29,7 +29,7 @@ export function ExportPdfButton({ projectId, projectKey, projectName, projectTyp
       const supabase = createClient();
 
       // Fetch all data in parallel
-      const [issuesRes, sprintsRes, membersRes, vmRes, ownerRes] = await Promise.all([
+      const [issuesRes, sprintsRes, membersRes, vmRes, ownerRes, labelsRes] = await Promise.all([
         supabase
           .from("issues")
           .select("*, assignee:profiles!assignee_id(full_name, email), virtual_assignee:virtual_members!virtual_assignee_id(name, color)")
@@ -39,7 +39,24 @@ export function ExportPdfButton({ projectId, projectKey, projectName, projectTyp
         supabase.from("project_members").select("*, profile:profiles(full_name, email)").eq("project_id", projectId),
         supabase.from("virtual_members").select("*").eq("project_id", projectId).order("created_at"),
         supabase.from("projects").select("owner_id").eq("id", projectId).single(),
+        supabase.from("labels").select("*").eq("project_id", projectId).order("created_at"),
       ]);
+
+      // Fetch issue labels and merge into issues
+      const issueIds = (issuesRes.data || []).map((i: any) => i.id);
+      let issuesWithLabels = issuesRes.data || [];
+      if (issueIds.length > 0) {
+        const { data: ilRows } = await supabase
+          .from("issue_labels")
+          .select("issue_id, label:labels(id, name, color)")
+          .in("issue_id", issueIds);
+        const labelsByIssue: Record<string, any[]> = {};
+        for (const row of (ilRows || []) as any[]) {
+          if (!labelsByIssue[row.issue_id]) labelsByIssue[row.issue_id] = [];
+          if (row.label) labelsByIssue[row.issue_id].push(row.label);
+        }
+        issuesWithLabels = issuesWithLabels.map((i: any) => ({ ...i, labels: labelsByIssue[i.id] || [] }));
+      }
 
       // Get owner profile
       let ownerProfile: { id: string; full_name?: string; email?: string } | null = null;
@@ -57,8 +74,9 @@ export function ExportPdfButton({ projectId, projectKey, projectName, projectTyp
       ];
 
       const data: ProjectPdfData = {
-        project: { name: projectName, key: projectKey, type: projectType },
-        issues: issuesRes.data || [],
+        project: { name: projectName, key: projectKey, type: projectType, id: projectId },
+        issues: issuesWithLabels,
+        labels: labelsRes.data || [],
         sprints: sprintsRes.data || [],
         members: allMembers,
         virtualMembers: vmRes.data || [],

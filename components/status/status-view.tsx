@@ -6,12 +6,14 @@ import { cn, getInitials } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { ExportPdfButton } from "@/components/export/export-pdf-button";
 
+interface RawLabel { id: string; name: string; color: string; }
 interface RawIssue {
   id: string; key: string; title: string;
   type: string; status: string;
   assignee_id: string | null; virtual_assignee_id: string | null;
   story_points: number | null; start_date: string | null; due_date: string | null;
   created_at: string;
+  labels?: RawLabel[];
 }
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
   issues: RawIssue[];
   members: any[];
   virtualMembers: VirtualMember[];
+  projectLabels?: RawLabel[];
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -42,7 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const TYPE_ORDER = ["epic", "story", "task", "bug", "subtask"];
 
-export function StatusView({ project, issues, members, virtualMembers }: Props) {
+export function StatusView({ project, issues, members, virtualMembers, projectLabels = [] }: Props) {
   const [selectedUser, setSelectedUser] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -88,6 +91,19 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
 
   const doneCount = (statusCounts["done"] || 0) + (statusCounts["completed"] || 0);
   const overallProgress = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  const labelCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    filtered.forEach((i) => i.labels?.forEach((l) => { c[l.id] = (c[l.id] || 0) + 1; }));
+    return c;
+  }, [filtered]);
+
+  const labelChartData = useMemo(() =>
+    projectLabels
+      .filter((l) => labelCounts[l.id] > 0)
+      .map((l) => ({ ...l, count: labelCounts[l.id] }))
+      .sort((a, b) => b.count - a.count),
+  [projectLabels, labelCounts]);
 
   const perUser = useMemo(() => {
     const map: Record<string, { total: number; done: number; byType: Record<string, number>; byStatus: Record<string, number> }> = {};
@@ -241,6 +257,32 @@ export function StatusView({ project, issues, members, virtualMembers }: Props) 
             </div>
           </div>
         </div>
+
+        {/* ── By Label ─────────────────────────────────────────────────── */}
+        {labelChartData.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 className="text-sm font-semibold text-gray-600 mb-4">By Label</h2>
+            <div className="space-y-2">
+              {labelChartData.map((l) => {
+                const pct = total > 0 ? (l.count / total) * 100 : 0;
+                return (
+                  <div key={l.id}>
+                    <div className="flex items-center justify-between text-xs mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-sm shrink-0" style={{ background: l.color }} />
+                        <span className="text-gray-600">{l.name}</span>
+                      </div>
+                      <span className="font-semibold text-gray-900">{l.count}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: l.color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Row 2: Issues per person (compact + scrollable) ─────────── */}
         <div className="bg-white rounded-xl border border-gray-200 p-5">
