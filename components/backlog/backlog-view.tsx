@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil } from "lucide-react";
+import { Plus, Play, CheckCircle, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
@@ -69,6 +69,8 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
   const [editForm, setEditForm] = useState({ name: "", goal: "", start_date: "", end_date: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteSprintId, setDeleteSprintId] = useState<string | null>(null);
+  const [deletingSprint, setDeletingSprint] = useState(false);
 
   const supabase = createClient();
 
@@ -207,6 +209,38 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
     toast.success("Sprint updated");
   }
 
+  async function deleteSprint() {
+    if (!deleteSprintId) return;
+    setDeletingSprint(true);
+
+    // Find the next sprint to move issues to (next planned/active sprint after this one)
+    const currentIndex = sprints.findIndex((s) => s.id === deleteSprintId);
+    const nextSprint = sprints.find((s, i) => i > currentIndex && s.status !== "completed") ?? null;
+    const targetSprintId = nextSprint?.id ?? null; // null = backlog
+
+    // Move all issues from deleted sprint to next sprint or backlog
+    const { error: moveError } = await supabase
+      .from("issues")
+      .update({ sprint_id: targetSprintId })
+      .eq("sprint_id", deleteSprintId);
+
+    if (moveError) { toast.error("Failed to move issues"); setDeletingSprint(false); return; }
+
+    // Delete the sprint
+    const { error } = await supabase.from("sprints").delete().eq("id", deleteSprintId);
+    if (error) { toast.error("Failed to delete sprint"); setDeletingSprint(false); return; }
+
+    // Update local state
+    setIssues((prev) => prev.map((i) => i.sprint_id === deleteSprintId ? { ...i, sprint_id: targetSprintId } : i));
+    setSprints((prev) => prev.filter((s) => s.id !== deleteSprintId));
+    setDeleteSprintId(null);
+    setDeletingSprint(false);
+    toast.success(nextSprint
+      ? `Sprint deleted — issues moved to ${nextSprint.name}`
+      : "Sprint deleted — issues moved to backlog"
+    );
+  }
+
   function handleIssueCreated(issue: Issue) {
     setIssues((prev) => [...prev, issue]);
     setCreateIssueSprintId(null);
@@ -270,6 +304,13 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
                     title="Edit sprint"
                   >
                     <Pencil size={13} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteSprintId(sprint.id)}
+                    className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Delete sprint"
+                  >
+                    <Trash2 size={13} />
                   </button>
                   <Button size="sm" variant="ghost" onClick={() => setCreateIssueSprintId(sprint.id)} className="h-7 text-xs gap-1">
                     <Plus size={12} /> Add issue
@@ -399,6 +440,36 @@ export function BacklogView({ project, initialSprints, initialIssues, members, v
               <Button type="submit" disabled={savingEdit} className="flex-1">{savingEdit ? "Saving..." : "Save changes"}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete sprint confirm dialog */}
+      <Dialog open={!!deleteSprintId} onOpenChange={(o) => !o && setDeleteSprintId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Delete sprint</DialogTitle></DialogHeader>
+          <div className="mt-2 space-y-3">
+            <p className="text-sm text-gray-600">
+              All issues in this sprint will be moved to{" "}
+              <span className="font-medium text-gray-900">
+                {(() => {
+                  const idx = sprints.findIndex((s) => s.id === deleteSprintId);
+                  const next = sprints.find((s, i) => i > idx && s.status !== "completed");
+                  return next ? next.name : "the backlog";
+                })()}
+              </span>.
+              This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={() => setDeleteSprintId(null)} disabled={deletingSprint}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={deleteSprint} disabled={deletingSprint}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {deletingSprint ? "Deleting…" : "Delete sprint"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
