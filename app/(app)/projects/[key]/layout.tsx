@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { LayoutShell } from "@/components/layout/layout-shell";
 import { getUser, getProfile, getProject, getUserProjects } from "@/lib/data";
+import { runSchema } from "@/lib/db";
 
 export default async function ProjectLayout({
   children,
@@ -10,6 +11,11 @@ export default async function ProjectLayout({
   params: Promise<{ key: string }>;
 }) {
   const { key } = await params;
+
+  // Apply any pending DB migrations on first request after cold start.
+  // runSchema() is hash-guarded — no-op (instant) if schema is already up to date.
+  // We await it so the table always exists before any DB queries on this page.
+  await runSchema();
 
   const user = await getUser();
   if (!user) redirect("/login");

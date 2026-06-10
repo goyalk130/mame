@@ -24,10 +24,26 @@ export default async function IssuesPage({ params }: { params: Promise<{ key: st
       .order("created_at", { ascending: false }),
   ]);
 
+  const issueList = issuesRes.data || [];
+  const issueIds = issueList.map((i: any) => i.id);
+  let issuesWithAssignees = issueList;
+  if (issueIds.length > 0) {
+    const { data: assigneeRows } = await supabase
+      .from("issue_assignees")
+      .select("*, profile:profiles!user_id(*), virtual_member:virtual_members!virtual_member_id(*)")
+      .in("issue_id", issueIds);
+    const assigneesByIssue: Record<string, any[]> = {};
+    for (const row of (assigneeRows || []) as any[]) {
+      if (!assigneesByIssue[row.issue_id]) assigneesByIssue[row.issue_id] = [];
+      assigneesByIssue[row.issue_id].push(row);
+    }
+    issuesWithAssignees = issueList.map((i: any) => ({ ...i, assignees: assigneesByIssue[i.id] || [] }));
+  }
+
   return (
     <IssuesListView
       project={project}
-      initialIssues={issuesRes.data || []}
+      initialIssues={issuesWithAssignees}
       members={members}
       virtualMembers={virtualMembers}
       sprints={sprints}

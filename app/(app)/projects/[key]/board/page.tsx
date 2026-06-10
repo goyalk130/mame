@@ -76,10 +76,25 @@ export default async function BoardPage({ params }: { params: Promise<{ key: str
     if (row.label) labelsByIssue[row.issue_id].push(row.label);
   }
 
+  // Fetch multi-assignees
+  const assigneesResult = issueIds.length > 0
+    ? await supabase
+        .from("issue_assignees")
+        .select("*, profile:profiles!user_id(*), virtual_member:virtual_members!virtual_member_id(*)")
+        .in("issue_id", issueIds)
+    : { data: [] };
+
+  const assigneesByIssue: Record<string, any[]> = {};
+  for (const row of (assigneesResult.data || []) as any[]) {
+    if (!assigneesByIssue[row.issue_id]) assigneesByIssue[row.issue_id] = [];
+    assigneesByIssue[row.issue_id].push(row);
+  }
+
   const issuesWithParent = issueList.map(i => ({
     ...i,
     parent: i.parent_id ? (parentMap[i.parent_id] ?? null) : null,
     labels: labelsByIssue[i.id] || [],
+    assignees: assigneesByIssue[i.id] || [],
   }));
 
   return (

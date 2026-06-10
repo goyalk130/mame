@@ -15,6 +15,25 @@ import { CreateIssueDialog } from "@/components/issues/create-issue-dialog";
 import { IssueDetailPanel } from "@/components/issues/issue-detail-panel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn, statusBadgeClass, getInitials } from "@/lib/utils";
+import { AssigneeAvatars } from "@/components/ui/assignee-avatars";
+import type { Issue as IssueType, IssueAssignee } from "@/types";
+
+function issueMatchesAssignee(issue: IssueType, k: string): boolean {
+  if (k === "unassigned") {
+    if (issue.assignees && issue.assignees.length > 0) return false;
+    if (issue.assignee_id || (issue as any).virtual_assignee_id) return false;
+    return true;
+  }
+  const isVirtual = k.startsWith("v:");
+  const id = isVirtual ? k.slice(2) : k;
+  if (issue.assignees && issue.assignees.length > 0) {
+    return issue.assignees.some((a: IssueAssignee) =>
+      isVirtual ? a.virtual_member_id === id : a.user_id === id
+    );
+  }
+  if (isVirtual) return (issue as any).virtual_assignee_id === id;
+  return issue.assignee_id === id;
+}
 import toast from "react-hot-toast";
 import { format } from "date-fns";
 
@@ -89,10 +108,7 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
     }
     if (selectedTypes.length > 0 && !selectedTypes.includes(i.type)) return false;
     if (selectedUser !== "all") {
-      const ak = i.assignee_id ? i.assignee_id
-        : i.virtual_assignee_id ? `v:${i.virtual_assignee_id}`
-        : "unassigned";
-      if (ak !== selectedUser) return false;
+      if (!issueMatchesAssignee(i, selectedUser)) return false;
     }
     return true;
   }
@@ -775,22 +791,9 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
             return null;
           })()}
 
-          {issue.assignee && (
-            <Avatar className="hidden sm:flex w-5 h-5 shrink-0">
-              <AvatarFallback className="text-[8px]">
-                {getInitials(issue.assignee.full_name || issue.assignee.email)}
-              </AvatarFallback>
-            </Avatar>
-          )}
-          {!issue.assignee && issue.virtual_assignee && (
-            <div
-              className="hidden sm:flex w-5 h-5 rounded-full items-center justify-center text-white text-[8px] font-bold shrink-0"
-              style={{ background: issue.virtual_assignee.color }}
-              title={issue.virtual_assignee.name}
-            >
-              {getInitials(issue.virtual_assignee.name)}
-            </div>
-          )}
+          <div className="hidden sm:flex">
+            <AssigneeAvatars issue={issue} size={5} />
+          </div>
         </div>
       )}
     </Draggable>

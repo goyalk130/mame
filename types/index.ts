@@ -80,6 +80,16 @@ export interface Issue {
   labels?: Label[];
   subtasks?: Issue[];
   parent?: Issue | null;
+  assignees?: IssueAssignee[];
+}
+
+export interface IssueAssignee {
+  id: string;
+  issue_id: string;
+  user_id: string | null;
+  virtual_member_id: string | null;
+  profile?: Profile | null;
+  virtual_member?: VirtualMember | null;
 }
 
 export interface VirtualMember {

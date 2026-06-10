@@ -1,8 +1,8 @@
 "use client";
 import type { Issue, IssueType } from "@/types";
 import { IssueTypeIcon, PriorityIcon } from "@/components/ui/issue-icons";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { AssigneeAvatars } from "@/components/ui/assignee-avatars";
 import { getTimeStatus, getTimeInfo, TIME_STATUS_BG } from "@/lib/time-status";
 
 const PARENT_TYPE_STYLES: Record<IssueType, { bg: string; text: string; dot: string }> = {
@@ -73,24 +73,8 @@ export function IssueCard({ issue, onClick }: Props) {
             </span>
           ) : null}
 
-          {/* Assignee */}
-          {issue.assignee && (
-            <Avatar className="w-4 h-4">
-              <AvatarImage src={issue.assignee.avatar_url || undefined} />
-              <AvatarFallback className="text-[7px]">
-                {getInitials(issue.assignee.full_name || issue.assignee.email)}
-              </AvatarFallback>
-            </Avatar>
-          )}
-          {!issue.assignee && issue.virtual_assignee && (
-            <div
-              className="w-4 h-4 rounded-full flex items-center justify-center text-white text-[7px] font-bold shrink-0"
-              style={{ background: issue.virtual_assignee.color }}
-              title={issue.virtual_assignee.name}
-            >
-              {getInitials(issue.virtual_assignee.name)}
-            </div>
-          )}
+          {/* Assignees (multi) */}
+          <AssigneeAvatars issue={issue} size={4} />
         </div>
       </div>
 

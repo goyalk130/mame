@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle, Copy, Tag, Check } from "lucide-react";
+import { X, Trash2, Plus, ChevronRight, CheckCircle2, Circle, Copy, Tag, Check, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint, Label } from "@/types";
+import type { Issue, Comment, Activity, Project, IssueStatus, IssuePriority, IssueType, VirtualMember, Sprint, Label, IssueAssignee } from "@/types";
 import { STATUS_LABELS, PRIORITY_LABELS, TYPE_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,22 +57,45 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
   const [allLabels, setAllLabels] = useState<Label[]>([]);
   const [labelPickerOpen, setLabelPickerOpen] = useState(false);
   const [labelsLoaded, setLabelsLoaded] = useState(false);
+  const [assignees, setAssignees] = useState<IssueAssignee[]>(initialIssue.assignees || []);
+  const [assigneePickerOpen, setAssigneePickerOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
 
   useEffect(() => {
+    // Seed immediately with whatever we have (fast, avoids blank flash)
     setIssue(initialIssue);
     setTitleValue(initialIssue.title);
     setIssueLabels(initialIssue.labels || []);
+    setAssignees(initialIssue.assignees || []);
     setActivityPage(1);
     setActivityHasMore(false);
+    // Then fetch the full fresh issue from DB — navigation (breadcrumb / child click)
+    // may pass an incomplete object with only a few fields populated.
+    fetchFullIssue();
     fetchComments();
     fetchActivity(1);
     fetchChildren();
     fetchParentFresh();
     fetchIssueLabels();
+    fetchAssignees();
   }, [initialIssue.id]);
+
+  // Fetch the complete issue row — ensures all sidebar fields (dates, points,
+  // priority, sprint, etc.) are always up to date regardless of what was
+  // passed via onNavigate (breadcrumb / child click may pass a partial object).
+  async function fetchFullIssue() {
+    const { data } = await supabase
+      .from("issues")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
+      .eq("id", initialIssue.id)
+      .single();
+    if (data) {
+      setIssue(data as Issue);
+      setTitleValue((data as Issue).title);
+    }
+  }
 
   async function fetchChildren() {
     const { data } = await supabase
@@ -93,7 +116,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
     if (!fresh?.parent_id) { setParentIssue(null); return; }
     const { data } = await supabase
       .from("issues")
-      .select("id, key, title, type, status, project_id")
+      .select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)")
       .eq("id", fresh.parent_id)
       .single();
     setParentIssue(data as Issue || null);
@@ -105,6 +128,51 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
       .select("label:labels(*)")
       .eq("issue_id", initialIssue.id);
     setIssueLabels((data || []).map((r: any) => r.label).filter(Boolean));
+  }
+
+  async function fetchAssignees() {
+    const { data } = await supabase
+      .from("issue_assignees")
+      .select("*, profile:profiles!user_id(*), virtual_member:virtual_members!virtual_member_id(*)")
+      .eq("issue_id", initialIssue.id);
+    setAssignees((data as IssueAssignee[]) || []);
+  }
+
+  async function addAssignee(userId?: string, virtualMemberId?: string) {
+    if (!userId && !virtualMemberId) return;
+    // Check if already assigned
+    const alreadyAssigned = assignees.some(a =>
+      (userId && a.user_id === userId) || (virtualMemberId && a.virtual_member_id === virtualMemberId)
+    );
+    if (alreadyAssigned) return;
+
+    const payload: Record<string, any> = { issue_id: issue.id };
+    if (userId) payload.user_id = userId;
+    if (virtualMemberId) payload.virtual_member_id = virtualMemberId;
+
+    const { data, error } = await supabase
+      .from("issue_assignees")
+      .insert(payload as any)
+      .select("*, profile:profiles!user_id(*), virtual_member:virtual_members!virtual_member_id(*)")
+      .single();
+    if (error) { toast.error(error.message); return; }
+
+    const newAssignees = [...assignees, data as IssueAssignee];
+    setAssignees(newAssignees);
+    onUpdated({ ...issue, assignees: newAssignees });
+
+    // Also keep legacy field in sync (first real assignee)
+    if (userId && !issue.assignee_id) {
+      await supabase.from("issues").update({ assignee_id: userId, updated_at: new Date().toISOString() }).eq("id", issue.id);
+    }
+  }
+
+  async function removeAssignee(assigneeId: string) {
+    const { error } = await supabase.from("issue_assignees").delete().eq("id", assigneeId);
+    if (error) { toast.error(error.message); return; }
+    const newAssignees = assignees.filter(a => a.id !== assigneeId);
+    setAssignees(newAssignees);
+    onUpdated({ ...issue, assignees: newAssignees });
   }
 
   async function openLabelPicker() {
@@ -827,49 +895,111 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                 </Select>
               </Field>
 
-              <Field label="Assignee">
-                <Select
-                  value={
-                    issue.virtual_assignee_id
-                      ? `virtual:${issue.virtual_assignee_id}`
-                      : issue.assignee_id
-                      ? `real:${issue.assignee_id}`
-                      : "unassigned"
-                  }
-                  onValueChange={(v) => {
-                    if (v === "unassigned") {
-                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
-                    } else if (v.startsWith("virtual:")) {
-                      const vmId = v.replace("virtual:", "");
-                      const vm = virtualMembers.find(m => m.id === vmId);
-                      supabase.from("issues").update({ assignee_id: null, virtual_assignee_id: vmId, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
-                    } else {
-                      const userId = v.replace("real:", "");
-                      const m = members.find((m: any) => m.user_id === userId);
-                      supabase.from("issues").update({ assignee_id: userId, virtual_assignee_id: null, updated_at: new Date().toISOString() }).eq("id", issue.id).select("*, assignee:profiles!assignee_id(*), reporter:profiles!reporter_id(*), virtual_assignee:virtual_members!virtual_assignee_id(*)").single().then(({ data }) => { if (data) { setIssue(data as Issue); onUpdated(data as Issue); } });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {members.length > 0 && <div className="px-2 py-1 text-xs text-gray-400 font-medium">Team members</div>}
-                    {members.map((m: any) => (
-                      <SelectItem key={m.user_id} value={`real:${m.user_id}`}>
-                        {m.profile?.full_name || m.profile?.email}
-                      </SelectItem>
-                    ))}
-                    {virtualMembers.length > 0 && <div className="px-2 py-1 text-xs text-gray-400 font-medium">Virtual members</div>}
-                    {virtualMembers.map((vm) => (
-                      <SelectItem key={vm.id} value={`virtual:${vm.id}`}>
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: vm.color }} />
-                          {vm.name}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Field label="Assignees">
+                <div className="space-y-1.5">
+                  {/* Current assignees as chips */}
+                  {assignees.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {assignees.map((a) => {
+                        const name = a.profile
+                          ? (a.profile.full_name || a.profile.email)
+                          : a.virtual_member?.name || "Unknown";
+                        const color = a.virtual_member?.color;
+                        return (
+                          <span
+                            key={a.id}
+                            className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-700"
+                          >
+                            {color ? (
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                            ) : (
+                              <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+                            )}
+                            <span className="max-w-[80px] truncate">{name}</span>
+                            <button
+                              onClick={() => removeAssignee(a.id)}
+                              className="ml-0.5 text-gray-400 hover:text-red-500 transition-colors"
+                              title={`Remove ${name}`}
+                            >
+                              <X size={9} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {/* Add assignee button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setAssigneePickerOpen(v => !v)}
+                      className="flex items-center gap-1.5 h-7 px-2 rounded-md border border-input bg-background hover:bg-accent hover:border-gray-300 text-xs text-gray-400 w-full text-left transition-colors"
+                    >
+                      <Users size={11} />
+                      {assignees.length === 0 ? "Add assignees..." : "Add more..."}
+                    </button>
+                    {assigneePickerOpen && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setAssigneePickerOpen(false)} />
+                        <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-52 overflow-hidden">
+                          {members.length === 0 && virtualMembers.length === 0 ? (
+                            <p className="text-xs text-gray-400 p-3 text-center">No members yet.</p>
+                          ) : (
+                            <div className="max-h-52 overflow-y-auto py-1">
+                              {members.length > 0 && (
+                                <div className="px-3 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wide">Team</div>
+                              )}
+                              {members.map((m: any) => {
+                                const active = assignees.some(a => a.user_id === m.user_id);
+                                return (
+                                  <button
+                                    key={m.user_id}
+                                    onClick={() => {
+                                      if (active) {
+                                        const row = assignees.find(a => a.user_id === m.user_id);
+                                        if (row) removeAssignee(row.id);
+                                      } else {
+                                        addAssignee(m.user_id, undefined);
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors"
+                                  >
+                                    <span className="w-3 h-3 rounded-full bg-blue-400 shrink-0" />
+                                    <span className="flex-1 text-left font-medium text-gray-800 truncate">{m.profile?.full_name || m.profile?.email}</span>
+                                    {active && <Check size={11} className="text-blue-500 shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                              {virtualMembers.length > 0 && (
+                                <div className="px-3 py-1 text-[10px] text-gray-400 font-semibold uppercase tracking-wide border-t border-gray-100 mt-1 pt-2">Virtual</div>
+                              )}
+                              {virtualMembers.map((vm) => {
+                                const active = assignees.some(a => a.virtual_member_id === vm.id);
+                                return (
+                                  <button
+                                    key={vm.id}
+                                    onClick={() => {
+                                      if (active) {
+                                        const row = assignees.find(a => a.virtual_member_id === vm.id);
+                                        if (row) removeAssignee(row.id);
+                                      } else {
+                                        addAssignee(undefined, vm.id);
+                                      }
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 transition-colors"
+                                  >
+                                    <span className="w-3 h-3 rounded-full shrink-0" style={{ background: vm.color }} />
+                                    <span className="flex-1 text-left font-medium text-gray-800 truncate">{vm.name}</span>
+                                    {active && <Check size={11} className="text-blue-500 shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </Field>
 
               <Field label="Reporter">
@@ -880,6 +1010,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 
               <Field label="Story Points (days)">
                 <Input
+                  key={`sp-${issue.id}`}
                   type="number"
                   min={0}
                   className="h-7 text-xs"
@@ -893,6 +1024,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 
               <Field label="Start Date">
                 <Input
+                  key={`sd-${issue.id}`}
                   type="date"
                   className="h-7 text-xs"
                   defaultValue={issue.start_date || ""}
@@ -905,6 +1037,7 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
 
               <Field label="Due Date">
                 <Input
+                  key={`dd-${issue.id}`}
                   type="date"
                   className="h-7 text-xs"
                   defaultValue={issue.due_date || ""}

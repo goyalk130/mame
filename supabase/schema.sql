@@ -326,3 +326,65 @@ end $$;
 -- Add completed_at and start_date to issues (migration for existing DBs)
 alter table public.issues add column if not exists completed_at timestamptz;
 alter table public.issues add column if not exists start_date date;
+
+-- ── Multiple Assignees ──────────────────────────────────────────────────────
+-- Junction table: one real or one virtual assignee per row, many per issue
+create table if not exists issue_assignees (
+  id                 uuid default uuid_generate_v4() primary key,
+  issue_id           uuid references issues(id) on delete cascade not null,
+  user_id            uuid references profiles(id) on delete cascade,
+  virtual_member_id  uuid references virtual_members(id) on delete cascade,
+  created_at         timestamptz default now(),
+  -- exactly one of user_id / virtual_member_id must be set
+  constraint issue_assignees_one_type check (
+    (user_id is not null and virtual_member_id is null) or
+    (user_id is null    and virtual_member_id is not null)
+  )
+);
+
+-- Enable RLS (idempotent)
+alter table public.issue_assignees enable row level security;
+
+-- Partial unique indexes — prevent duplicate real/virtual assignee per issue.
+-- Partial indexes handle NULLs correctly (unlike UNIQUE on nullable columns)
+-- and are safe to create with IF NOT EXISTS on re-runs.
+create unique index if not exists idx_ia_issue_user
+  on public.issue_assignees(issue_id, user_id)
+  where user_id is not null;
+
+create unique index if not exists idx_ia_issue_virtual
+  on public.issue_assignees(issue_id, virtual_member_id)
+  where virtual_member_id is not null;
+
+create index if not exists idx_issue_assignees_issue_id
+  on public.issue_assignees(issue_id);
+
+-- Policies are dropped by the "drop all" block above and recreated here each run
+create policy "issue_assignees_select" on public.issue_assignees for select using (
+  exists (select 1 from issues i where i.id = issue_id
+          and (is_project_owner(i.project_id) or is_project_member(i.project_id)))
+);
+
+create policy "issue_assignees_insert" on public.issue_assignees for insert with check (
+  exists (select 1 from issues i where i.id = issue_id
+          and (is_project_owner(i.project_id) or is_project_member(i.project_id)))
+);
+
+create policy "issue_assignees_delete" on public.issue_assignees for delete using (
+  exists (select 1 from issues i where i.id = issue_id
+          and (is_project_owner(i.project_id) or is_project_member(i.project_id)))
+);
+
+-- Backfill: migrate existing assignee_id / virtual_assignee_id into issue_assignees.
+-- ON CONFLICT DO NOTHING makes this a safe no-op on every subsequent run.
+insert into issue_assignees (issue_id, user_id)
+  select id, assignee_id
+  from issues
+  where assignee_id is not null
+on conflict do nothing;
+
+insert into issue_assignees (issue_id, virtual_member_id)
+  select id, virtual_assignee_id
+  from issues
+  where virtual_assignee_id is not null
+on conflict do nothing;

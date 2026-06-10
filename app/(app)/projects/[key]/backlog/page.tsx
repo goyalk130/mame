@@ -42,11 +42,26 @@ export default async function BacklogPage({ params }: { params: Promise<{ key: s
     issuesWithLabels = issueList.map((i: any) => ({ ...i, labels: labelsByIssue[i.id] || [] }));
   }
 
+  // Fetch multi-assignees (reuse issueIds already declared above)
+  let issuesWithAssignees = issuesWithLabels;
+  if (issueIds.length > 0) {
+    const { data: assigneeRows } = await supabase
+      .from("issue_assignees")
+      .select("*, profile:profiles!user_id(*), virtual_member:virtual_members!virtual_member_id(*)")
+      .in("issue_id", issueIds);
+    const assigneesByIssue: Record<string, any[]> = {};
+    for (const row of (assigneeRows || []) as any[]) {
+      if (!assigneesByIssue[row.issue_id]) assigneesByIssue[row.issue_id] = [];
+      assigneesByIssue[row.issue_id].push(row);
+    }
+    issuesWithAssignees = issuesWithLabels.map((i: any) => ({ ...i, assignees: assigneesByIssue[i.id] || [] }));
+  }
+
   return (
     <BacklogView
       project={project}
       initialSprints={sprints}
-      initialIssues={issuesWithLabels}
+      initialIssues={issuesWithAssignees}
       initialLabels={labelsRes.data || []}
       members={members}
       virtualMembers={virtualMembers}

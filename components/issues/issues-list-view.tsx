@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CreateIssueDialog } from "./create-issue-dialog";
 import { IssueDetailPanel } from "./issue-detail-panel";
 import { cn, statusBadgeClass, getInitials } from "@/lib/utils";
+import { AssigneeAvatars } from "@/components/ui/assignee-avatars";
 import { formatDistanceToNow } from "date-fns";
 
 interface Props {
@@ -20,6 +21,23 @@ interface Props {
   virtualMembers?: VirtualMember[];
   sprints?: Sprint[];
   userId: string;
+}
+
+function issueMatchesAssignee(issue: Issue, k: string): boolean {
+  if (k === "unassigned") {
+    if (issue.assignees && issue.assignees.length > 0) return false;
+    if (issue.assignee_id || (issue as any).virtual_assignee_id) return false;
+    return true;
+  }
+  const isVirtual = k.startsWith("v:");
+  const id = isVirtual ? k.slice(2) : k;
+  if (issue.assignees && issue.assignees.length > 0) {
+    return issue.assignees.some((a) =>
+      isVirtual ? a.virtual_member_id === id : a.user_id === id
+    );
+  }
+  if (isVirtual) return (issue as any).virtual_assignee_id === id;
+  return issue.assignee_id === id;
 }
 
 export function IssuesListView({ project, initialIssues, members, virtualMembers = [], sprints = [], userId }: Props) {
@@ -67,8 +85,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
       if (filterPriority !== "all" && i.priority !== filterPriority) return false;
       if (filterStatus !== "all" && i.status !== filterStatus) return false;
       if (filterAssignee !== "all") {
-        if (filterAssignee === "unassigned" && i.assignee_id !== null) return false;
-        if (filterAssignee !== "unassigned" && i.assignee_id !== filterAssignee) return false;
+        if (!issueMatchesAssignee(i, filterAssignee)) return false;
       }
       return true;
     });
@@ -134,7 +151,19 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
             <SelectContent>
               <SelectItem value="all">All assignees</SelectItem>
               <SelectItem value="unassigned">Unassigned</SelectItem>
-              {members.map((m: any) => <SelectItem key={m.user_id} value={m.user_id}>{m.profile?.full_name || m.profile?.email}</SelectItem>)}
+              {members.map((m: any) => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {m.profile?.full_name || m.profile?.email}
+                </SelectItem>
+              ))}
+              {virtualMembers.map((vm) => (
+                <SelectItem key={vm.id} value={`v:${vm.id}`}>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: vm.color }} />
+                    {vm.name}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           {(filterType !== "all" || filterPriority !== "all" || filterStatus !== "all" || filterAssignee !== "all" || search) && (
@@ -192,22 +221,8 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
                   </div>
                 </td>
                 <td className="hidden md:table-cell px-4 py-2.5">
-                  {issue.assignee ? (
-                    <div className="flex items-center gap-1.5">
-                      <Avatar className="w-5 h-5">
-                        <AvatarFallback className="text-[8px]">
-                          {getInitials(issue.assignee.full_name || issue.assignee.email)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.assignee.full_name || issue.assignee.email}</span>
-                    </div>
-                  ) : issue.virtual_assignee ? (
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[8px] font-bold shrink-0" style={{ background: issue.virtual_assignee.color }}>
-                        {getInitials(issue.virtual_assignee.name)}
-                      </div>
-                      <span className="text-xs text-gray-600 truncate max-w-[80px]">{issue.virtual_assignee.name}</span>
-                    </div>
+                  {(issue.assignees && issue.assignees.length > 0) || issue.assignee || issue.virtual_assignee ? (
+                    <AssigneeAvatars issue={issue} size={5} />
                   ) : (
                     <span className="text-xs text-gray-400">Unassigned</span>
                   )}

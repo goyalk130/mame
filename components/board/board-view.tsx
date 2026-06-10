@@ -14,6 +14,31 @@ import { IssueDetailPanel } from "@/components/issues/issue-detail-panel";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
+/**
+ * Returns true if `issue` should appear when filtering by assignee key `k`.
+ * Key format: plain uuid = real user, "v:uuid" = virtual member, "unassigned" = no one.
+ * Checks the new multi-assignees array first, falls back to legacy single fields.
+ */
+function issueMatchesAssignee(issue: Issue, k: string): boolean {
+  if (k === "unassigned") {
+    // Unassigned = no assignees at all
+    if (issue.assignees && issue.assignees.length > 0) return false;
+    if (issue.assignee_id || (issue as any).virtual_assignee_id) return false;
+    return true;
+  }
+  const isVirtual = k.startsWith("v:");
+  const id = isVirtual ? k.slice(2) : k;
+  // Check multi-assignees array
+  if (issue.assignees && issue.assignees.length > 0) {
+    return issue.assignees.some((a) =>
+      isVirtual ? a.virtual_member_id === id : a.user_id === id
+    );
+  }
+  // Fallback: legacy single fields
+  if (isVirtual) return (issue as any).virtual_assignee_id === id;
+  return issue.assignee_id === id;
+}
+
 // Grouped columns — each group is one visual column with stacked sub-sections
 const COLUMN_GROUPS: { sections: { id: IssueStatus; color: string }[] }[] = [
   {
@@ -118,10 +143,7 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
   const filtered = issues.filter((i) => {
     if (search && !i.title.toLowerCase().includes(search.toLowerCase()) && !i.key.toLowerCase().includes(search.toLowerCase())) return false;
     if (selectedUser !== "all") {
-      const assigneeKey = i.assignee_id ? i.assignee_id
-        : (i as any).virtual_assignee_id ? `v:${(i as any).virtual_assignee_id}`
-        : "unassigned";
-      if (assigneeKey !== selectedUser) return false;
+      if (!issueMatchesAssignee(i, selectedUser)) return false;
     }
     if (selectedLabels.length > 0) {
       const issueLabelIds = (i.labels || []).map((l: Label) => l.id);
@@ -301,12 +323,7 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
                         const info = k === "all" ? { name: "All people" } : (userMap[k] || { name: k });
                         const isSelected = selectedUser === k;
                         // count issues for this person
-                        const count = k === "all" ? issues.length : issues.filter((i) => {
-                          const ak = i.assignee_id ? i.assignee_id
-                            : (i as any).virtual_assignee_id ? `v:${(i as any).virtual_assignee_id}`
-                            : "unassigned";
-                          return ak === k;
-                        }).length;
+                        const count = k === "all" ? issues.length : issues.filter((i) => issueMatchesAssignee(i, k)).length;
                         if (k !== "all" && count === 0) return null;
                         return (
                           <button
