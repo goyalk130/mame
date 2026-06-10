@@ -695,28 +695,63 @@ export function IssueDetailPanel({ issue: initialIssue, project, members, virtua
                 const timeInfo = getTimeInfo(issue);
                 const timeStatus = getTimeStatus(issue);
                 if (!timeInfo) return null;
+
+                const isOwner = project.owner_id === userId;
+                const canRemoveDelay = isOwner && timeStatus === "late_done";
+
+                async function handleRemoveDelay() {
+                  if (!issue.due_date) return;
+                  // Set completed_at = due_date so the ticket appears on-time
+                  const { error } = await supabase
+                    .from("issues")
+                    .update({ completed_at: new Date(issue.due_date).toISOString() })
+                    .eq("id", issue.id);
+                  if (error) { toast.error("Failed to remove delay"); return; }
+                  const updated = { ...issue, completed_at: new Date(issue.due_date).toISOString() };
+                  setIssue(updated);
+                  onUpdated(updated);
+                  toast.success("Delay removed — ticket marked as on time");
+                }
+
+                const cardStyle =
+                  timeStatus === "overdue"      ? "bg-red-50 border-red-200 text-red-700" :
+                  timeStatus === "warning"       ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
+                  timeStatus === "late_done"     ? "bg-orange-50 border-orange-200 text-orange-700" :
+                  timeStatus === "on_time_done"  ? "bg-green-50 border-green-200 text-green-700" :
+                  "bg-blue-50 border-blue-100 text-blue-700";
+
+                const headline =
+                  timeStatus === "overdue"      ? "⚠ Overdue" :
+                  timeStatus === "warning"       ? "⏳ Nearing deadline" :
+                  timeStatus === "late_done"     ? "✗ Completed late" :
+                  timeStatus === "on_time_done"  ? "✓ Completed on time" :
+                  "✓ On track";
+
                 return (
-                  <div className={cn(
-                    "rounded-lg p-3 text-xs border",
-                    timeStatus === "overdue" ? "bg-red-50 border-red-200 text-red-700" :
-                    timeStatus === "warning" ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
-                    "bg-blue-50 border-blue-100 text-blue-700"
-                  )}>
-                    <div className="font-semibold mb-1">
-                      {timeStatus === "overdue" ? "⚠ Over budget" :
-                       timeStatus === "warning" ? "⏳ Nearing limit" :
-                       "✓ On track"}
-                    </div>
-                    <div>Budget: <strong>{timeInfo.pts} days</strong></div>
-                    <div>Elapsed: <strong>{timeInfo.elapsed} days</strong></div>
+                  <div className={cn("rounded-lg p-3 text-xs border", cardStyle)}>
+                    <div className="font-semibold mb-1">{headline}</div>
+                    {timeInfo.pts > 0 && (
+                      <div>{timeInfo.pts} pt{timeInfo.pts !== 1 ? "s" : ""} estimated</div>
+                    )}
                     {timeStatus === "overdue" && (
-                      <div className="font-bold text-red-600 mt-1">+{timeInfo.overflow} days over</div>
+                      <div className="font-bold mt-1">+{timeInfo.daysOverdue}d past due date</div>
                     )}
                     {timeStatus === "warning" && (
-                      <div className="font-bold text-yellow-600 mt-1">{timeInfo.remaining} day{timeInfo.remaining !== 1 ? "s" : ""} remaining</div>
+                      <div className="font-bold mt-1">{timeInfo.daysLeft}d left until due</div>
                     )}
-                    {timeStatus === "normal" && (
-                      <div className="text-blue-600 mt-1">{timeInfo.remaining} day{timeInfo.remaining !== 1 ? "s" : ""} remaining</div>
+                    {timeStatus === "late_done" && (
+                      <div className="font-bold mt-1">{timeInfo.daysLate}d late</div>
+                    )}
+
+                    {/* Owner-only: remove delay button */}
+                    {canRemoveDelay && (
+                      <button
+                        onClick={handleRemoveDelay}
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-white border border-orange-300 text-orange-700 hover:bg-orange-100 transition-colors text-xs font-medium"
+                        title="Mark as completed on time (owner only)"
+                      >
+                        <span>Remove delay</span>
+                      </button>
                     )}
                   </div>
                 );
