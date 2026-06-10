@@ -1,7 +1,8 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { Plus, Search, ChevronDown, Users, Tag } from "lucide-react";
+import { Plus, Search, ChevronDown, Users, Tag, AlertCircle } from "lucide-react";
+import { getTimeStatus } from "@/lib/time-status";
 import { createClient } from "@/lib/supabase/client";
 import type { Issue, IssueStatus, Project, Sprint, VirtualMember, Label } from "@/types";
 import { STATUS_LABELS } from "@/types";
@@ -60,6 +61,7 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [labelFilterOpen, setLabelFilterOpen] = useState(false);
   const [projectLabels, setProjectLabels] = useState<Label[]>(initialLabels);
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [createColumn, setCreateColumn] = useState<IssueStatus | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
@@ -125,8 +127,11 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
       const issueLabelIds = (i.labels || []).map((l: Label) => l.id);
       if (!selectedLabels.every((id) => issueLabelIds.includes(id))) return false;
     }
+    if (overdueOnly && getTimeStatus(i) !== "overdue") return false;
     return true;
   });
+
+  const overdueCount = issues.filter((i) => getTimeStatus(i) === "overdue").length;
 
   // Auto-scroll while dragging near left/right edges (mouse + touch)
   useEffect(() => {
@@ -379,6 +384,29 @@ export function BoardView({ project, initialIssues, initialLabels = [], members,
                 </>
               )}
             </div>
+
+            {/* Overdue filter */}
+            <button
+              onClick={() => setOverdueOnly((v) => !v)}
+              className={cn(
+                "flex items-center gap-1.5 text-sm border rounded-lg px-3 py-1.5 transition-colors h-8 font-medium",
+                overdueOnly
+                  ? "border-red-400 bg-red-50 text-red-700"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              )}
+              title="Show overdue tickets only"
+            >
+              <AlertCircle size={13} />
+              <span>Overdue</span>
+              {overdueCount > 0 && (
+                <span className={cn(
+                  "text-xs px-1.5 py-0.5 rounded-full font-semibold",
+                  overdueOnly ? "bg-red-200 text-red-800" : "bg-red-100 text-red-600"
+                )}>
+                  {overdueCount}
+                </span>
+              )}
+            </button>
 
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
