@@ -375,16 +375,6 @@ create policy "issue_assignees_delete" on public.issue_assignees for delete usin
           and (is_project_owner(i.project_id) or is_project_member(i.project_id)))
 );
 
--- Backfill: migrate existing assignee_id / virtual_assignee_id into issue_assignees.
--- ON CONFLICT DO NOTHING makes this a safe no-op on every subsequent run.
-insert into issue_assignees (issue_id, user_id)
-  select id, assignee_id
-  from issues
-  where assignee_id is not null
-on conflict do nothing;
 
-insert into issue_assignees (issue_id, virtual_member_id)
-  select id, virtual_assignee_id
-  from issues
-  where virtual_assignee_id is not null
-on conflict do nothing;
+-- Backfill ran once on initial deploy — removed to prevent re-inserting
+-- rows that were intentionally deleted from issue_assignees.
