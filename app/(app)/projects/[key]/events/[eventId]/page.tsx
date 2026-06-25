@@ -4,11 +4,12 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Plus, QrCode, Trash2, Mail, Phone, DollarSign, Calendar, MapPin, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Plus, QrCode, Trash2, Mail, Phone, DollarSign, Calendar, MapPin, Pencil, Check, X, Download } from "lucide-react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { QrModal } from "@/components/events/qr-modal";
 import { QrDownloadCard } from "@/components/events/qr-download-card";
+import * as XLSX from "xlsx";
 
 interface Event {
   id: string;
@@ -114,6 +115,27 @@ export default function EventDetailPage() {
     router.push(`/projects/${projectKey}/events`);
   }
 
+  function exportToExcel() {
+    if (tickets.length === 0) { toast.error("No tickets to export"); return; }
+    const rows = tickets.map((t, i) => ({
+      "#": i + 1,
+      "Name": t.name,
+      "Email": t.email || "",
+      "Phone": t.phone || "",
+      "Amount Paid (₹)": t.amount ?? "",
+      "Notes": t.notes || "",
+      "Issued At": format(new Date(t.created_at), "dd MMM yyyy, hh:mm a"),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Column widths
+    ws["!cols"] = [{ wch: 4 }, { wch: 24 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 32 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tickets");
+    const fileName = `${event?.name ?? "event"}_tickets_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast.success("Exported!");
+  }
+
   function openEdit() {
     if (!event) return;
     setEName(event.name);
@@ -169,6 +191,11 @@ export default function EventDetailPage() {
             <Button variant="outline" onClick={openEdit} className="gap-1.5 text-sm">
               <Pencil size={14} /> Edit
             </Button>
+            {tickets.length > 0 && (
+              <Button variant="outline" onClick={exportToExcel} className="gap-1.5 text-sm text-green-700 border-green-200 hover:bg-green-50">
+                <Download size={14} /> Export
+              </Button>
+            )}
             <Button onClick={() => setView("new-ticket")} className="gap-2">
               <Plus size={15} /> Add Ticket
             </Button>
