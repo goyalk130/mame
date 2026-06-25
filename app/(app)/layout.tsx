@@ -14,16 +14,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     return <>{children}</>;
   }
 
-  // Check profile approval status
+  // Check profile approval status — fail open on DB errors (e.g. migration not yet applied)
   const admin = createAdminClient();
-  const { data: profile } = await admin
+  const { data: profile, error } = await admin
     .from("profiles")
     .select("status")
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.status === "pending") redirect("/pending-approval");
-  if (profile.status === "rejected") redirect("/pending-approval?rejected=1");
+  // If the column doesn't exist yet or any other DB error, let the user through
+  if (error) return <>{children}</>;
+
+  if (profile?.status === "rejected") redirect("/pending-approval?rejected=1");
+  if (profile?.status === "pending") redirect("/pending-approval");
 
   return <>{children}</>;
 }
