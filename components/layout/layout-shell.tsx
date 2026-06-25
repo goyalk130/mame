@@ -8,10 +8,11 @@ interface LayoutShellProps {
   projects: Project[];
   currentProject?: Project;
   user: { id: string; email: string; full_name?: string | null };
+  isSuperAdmin?: boolean;
   children: React.ReactNode;
 }
 
-export function LayoutShell({ projects, currentProject, user, children }: LayoutShellProps) {
+export function LayoutShell({ projects, currentProject, user, isSuperAdmin, children }: LayoutShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -39,7 +40,7 @@ export function LayoutShell({ projects, currentProject, user, children }: Layout
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Desktop sidebar — always visible on lg+ */}
         <div className="hidden lg:flex lg:shrink-0">
-          <Sidebar projects={projects} currentProject={currentProject} user={user} />
+          <Sidebar projects={projects} currentProject={currentProject} user={user} isSuperAdmin={isSuperAdmin} />
         </div>
 
         {/* Mobile sidebar drawer */}
@@ -54,6 +55,7 @@ export function LayoutShell({ projects, currentProject, user, children }: Layout
                 projects={projects}
                 currentProject={currentProject}
                 user={user}
+                isSuperAdmin={isSuperAdmin}
                 onClose={() => setMobileOpen(false)}
               />
             </div>

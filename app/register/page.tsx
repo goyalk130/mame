@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Clock } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function RegisterPage() {
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -42,18 +44,30 @@ export default function RegisterPage() {
       setLoading(false);
       return;
     }
-    // Auto-confirm is enabled — sign in immediately
+    // Sign in to establish session, then call setup to create the profile row
     const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginError) {
-      // Fallback: user created but couldn't auto-login (e.g. email not yet confirmed)
-      toast.success("Account created! Please sign in.");
-      router.push("/login");
-      return;
+    if (!loginError) {
+      await fetch("/api/setup", { method: "POST" });
     }
-    await fetch("/api/setup", { method: "POST" });
-    toast.success("Welcome to Mame!");
-    router.push("/projects");
-    router.refresh();
+    // Always show pending state — approval required before accessing the app
+    setSubmitted(true);
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-md bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-amber-100 rounded-full mb-4">
+            <Clock className="text-amber-600" size={28} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Request Submitted</h1>
+          <p className="text-gray-500 text-sm mb-4">
+            Your account is pending approval. You will be able to access Mame once the administrator approves your request.
+          </p>
+          <p className="text-xs text-gray-400">You can close this tab for now.</p>
+        </div>
+      </div>
+    );
   }
 
   return (

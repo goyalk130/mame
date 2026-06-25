@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ProjectsHome } from "@/components/projects/projects-home";
 import { LayoutShell } from "@/components/layout/layout-shell";
 
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+
 export default async function ProjectsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,8 +21,10 @@ export default async function ProjectsPage() {
     ...((memberProjects || []).map((m: any) => m.projects).filter(Boolean)),
   ].filter((p, i, arr) => arr.findIndex((x: any) => x.id === p.id) === i);
 
+  const isSuperAdmin = user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
   return (
-    <LayoutShell projects={allProjects} user={{ id: user.id, email: user.email!, full_name: profile?.full_name }}>
+    <LayoutShell projects={allProjects} user={{ id: user.id, email: user.email!, full_name: profile?.full_name }} isSuperAdmin={isSuperAdmin}>
       <ProjectsHome projects={allProjects} userId={user.id} />
     </LayoutShell>
   );

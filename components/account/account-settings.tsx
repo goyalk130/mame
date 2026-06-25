@@ -10,15 +10,20 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   userId: string;
-  email: string;
   fullName: string;
+  isSuperAdmin: boolean;
 }
 
-const SUPER_ADMIN_EMAIL = "goyalkaran130@gmail.com";
-
-export function AccountSettings({ userId, email, fullName }: Props) {
+export function AccountSettings({ userId, fullName, isSuperAdmin }: Props) {
   const router = useRouter();
-  const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+  const supabase = createClient();
+  // Email is read from the live auth session — never stored in props or bundle
+  const [userEmail, setUserEmail] = useState("");
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setUserEmail(data.user.email);
+    });
+  }, []);
 
   // Super admin: signup toggle
   const [signupEnabled, setSignupEnabled] = useState<boolean | null>(null);
@@ -101,8 +106,9 @@ export function AccountSettings({ userId, email, fullName }: Props) {
     const supabase = createClient();
 
     // Verify current password by re-signing in
+    const { data: { user: authUser } } = await supabase.auth.getUser();
     const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email,
+      email: authUser?.email ?? "",
       password: currentPw,
     });
     if (signInErr) {
@@ -135,7 +141,7 @@ export function AccountSettings({ userId, email, fullName }: Props) {
           Back
         </button>
         <h1 className="text-xl font-bold text-gray-900">Account Settings</h1>
-        <p className="text-sm text-gray-400 mt-1">{email}</p>
+        <p className="text-sm text-gray-400 mt-1">{userEmail}</p>
       </div>
 
       {/* ── Profile ─────────────────────────────────────────────────────── */}
@@ -157,7 +163,7 @@ export function AccountSettings({ userId, email, fullName }: Props) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
-            <Input value={email} disabled className="h-9 bg-gray-50 text-gray-400 cursor-not-allowed" />
+            <Input value={userEmail} disabled className="h-9 bg-gray-50 text-gray-400 cursor-not-allowed" />
             <p className="text-xs text-gray-400 mt-1">Email cannot be changed here.</p>
           </div>
           <Button type="submit" size="sm" disabled={savingProfile} className="w-full">

@@ -66,7 +66,7 @@ export default async function TicketVerifyPage({ params }: Props) {
                 <CheckCircle2 className="text-green-600 shrink-0" size={28} />
                 <div>
                   <p className="font-semibold text-green-800 text-base">Ticket Verified ✓</p>
-                  <p className="text-green-700 text-sm">This is an authentic ticket</p>
+                  <p className="text-green-700 text-sm">Ticket verified successfully</p>
                 </div>
               </>
             ) : (
@@ -123,11 +123,6 @@ export default async function TicketVerifyPage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="p-3 bg-green-50 rounded-lg border border-green-100">
-                <p className="text-xs text-green-700 font-medium">
-                  🔒 This ticket URL is cryptographically unique and cannot be duplicated or forged.
-                </p>
-              </div>
             </div>
           )}
 

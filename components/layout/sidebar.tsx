@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb, X, QrCode } from "lucide-react";
+import { LayoutGrid, List, ArrowLeft, Settings, LogOut, Plus, BarChart2, Lightbulb, QrCode, Shield } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/types";
@@ -13,10 +13,11 @@ interface SidebarProps {
   projects: Project[];
   currentProject?: Project;
   user: { id: string; email: string; full_name?: string | null };
+  isSuperAdmin?: boolean;
   onClose?: () => void;
 }
 
-export function Sidebar({ projects, currentProject, user, onClose }: SidebarProps) {
+export function Sidebar({ projects, currentProject, user, isSuperAdmin, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -119,6 +120,15 @@ export function Sidebar({ projects, currentProject, user, onClose }: SidebarProp
           <Link href="/" className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
             <ArrowLeft size={14} />
             <span>All projects</span>
+          </Link>
+        )}
+        {isSuperAdmin && !collapsed && (
+          <Link href="/admin" className={cn(
+            "flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors",
+            pathname.startsWith("/admin") ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700 hover:text-white"
+          )}>
+            <Shield size={14} />
+            <span>Admin</span>
           </Link>
         )}
         <button

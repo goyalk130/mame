@@ -3,6 +3,8 @@ import { LayoutShell } from "@/components/layout/layout-shell";
 import { getUser, getProfile, getProject, getUserProjects } from "@/lib/data";
 import { runSchema } from "@/lib/db";
 
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+
 export default async function ProjectLayout({
   children,
   params,
@@ -29,11 +31,14 @@ export default async function ProjectLayout({
 
   if (!project) redirect("/");
 
+  const isSuperAdmin = user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
   return (
     <LayoutShell
       projects={allProjects}
       currentProject={project}
       user={{ id: user.id, email: user.email!, full_name: profile?.full_name }}
+      isSuperAdmin={isSuperAdmin}
     >
       {children}
     </LayoutShell>

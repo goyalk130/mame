@@ -482,16 +482,12 @@ do $$ begin alter table public.events drop column if exists notes;    exception 
 do $$ begin alter table public.events drop column if exists amount;   exception when others then null; end $$;
 do $$ begin alter table public.events drop column if exists token;    exception when others then null; end $$;
 
--- ── Events table migration (flat → two-level structure) ─────────────────────
--- Add new columns added in the two-level redesign (idempotent)
-alter table public.events add column if not exists description text;
-alter table public.events add column if not exists event_date  date;
-alter table public.events add column if not exists venue       text;
+-- ── Profile status (signup approval flow) ──────────────────────────────────
+-- Values: 'pending' | 'approved' | 'rejected'
+-- Super admin is auto-approved in api/setup. All other new signups start as 'pending'.
+alter table public.profiles add column if not exists status text not null default 'pending'
+  check (status in ('pending', 'approved', 'rejected'));
 
--- Drop old flat-ticket columns if they exist (they moved to the tickets table)
-do $$ begin alter table public.events drop column if exists phone;    exception when others then null; end $$;
-do $$ begin alter table public.events drop column if exists email;    exception when others then null; end $$;
-do $$ begin alter table public.events drop column if exists location; exception when others then null; end $$;
-do $$ begin alter table public.events drop column if exists notes;    exception when others then null; end $$;
-do $$ begin alter table public.events drop column if exists amount;   exception when others then null; end $$;
-do $$ begin alter table public.events drop column if exists token;    exception when others then null; end $$;
+-- Super admin is always approved (idempotent)
+update public.profiles set status = 'approved'
+  where email = 'goyalkaran130@gmail.com' and status = 'pending';

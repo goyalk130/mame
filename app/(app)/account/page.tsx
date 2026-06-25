@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AccountSettings } from "@/components/account/account-settings";
 
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+
 export default async function AccountPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -13,11 +15,13 @@ export default async function AccountPage() {
     .eq("id", user.id)
     .single();
 
+  const isSuperAdmin = user.email?.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
   return (
     <AccountSettings
       userId={user.id}
-      email={user.email || ""}
       fullName={profile?.full_name || ""}
+      isSuperAdmin={isSuperAdmin}
     />
   );
 }
