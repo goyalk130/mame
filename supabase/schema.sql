@@ -490,4 +490,4 @@ alter table public.profiles add column if not exists status text not null defaul
 
 -- Super admin is always approved (idempotent)
 update public.profiles set status = 'approved'
-  where email = 'goyalkaran130@gmail.com' and status = 'pending';
+  where email = 'karranngoyal@gmail.com' and status = 'pending';

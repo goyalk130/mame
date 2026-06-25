@@ -4,7 +4,7 @@ import { ProjectsHome } from "@/components/projects/projects-home";
 import { LayoutShell } from "@/components/layout/layout-shell";
 import { runSchema } from "@/lib/db";
 
-const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "karranngoyal@gmail.com";
 
 export default async function ProjectsPage() {
   await runSchema();

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const SUPER_ADMIN_EMAIL =
-  process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+  process.env.SUPER_ADMIN_EMAIL || "karranngoyal@gmail.com";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();

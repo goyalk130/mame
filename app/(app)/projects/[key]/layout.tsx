@@ -3,7 +3,7 @@ import { LayoutShell } from "@/components/layout/layout-shell";
 import { getUser, getProfile, getProject, getUserProjects } from "@/lib/data";
 import { runSchema } from "@/lib/db";
 
-const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "goyalkaran130@gmail.com";
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "karranngoyal@gmail.com";
 
 export default async function ProjectLayout({
   children,
