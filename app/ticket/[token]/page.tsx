@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { CheckCircle2, XCircle, MapPin, Calendar, DollarSign, Ticket } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 interface Props { params: Promise<{ token: string }> }
 
@@ -9,9 +10,33 @@ export const metadata: Metadata = { title: "Ticket Verification · Mame" };
 
 async function verifyTicket(token: string) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/ticket/${token}`, { cache: "no-store" });
-    return await res.json();
+    const admin = createAdminClient();
+
+    const { data: ticket } = await admin
+      .from("tickets")
+      .select("id, name, amount, created_at, event_id")
+      .eq("token", token)
+      .single();
+
+    if (!ticket) return { valid: false, error: "Ticket not found" };
+
+    const { data: event } = await admin
+      .from("events")
+      .select("name, venue, event_date, project_id")
+      .eq("id", ticket.event_id)
+      .single();
+
+    const { data: project } = await admin
+      .from("projects")
+      .select("name")
+      .eq("id", event?.project_id)
+      .single();
+
+    return {
+      valid: true,
+      ticket: { holder_name: ticket.name, amount: ticket.amount, created_at: ticket.created_at },
+      event: { name: event?.name, venue: event?.venue, event_date: event?.event_date, project_name: project?.name },
+    };
   } catch {
     return { valid: false, error: "Verification failed" };
   }
@@ -35,7 +60,6 @@ export default async function TicketVerifyPage({ params }: Props) {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Status banner */}
           <div className={`px-6 py-5 flex items-center gap-3 ${result.valid ? "bg-green-50 border-b border-green-100" : "bg-red-50 border-b border-red-100"}`}>
             {result.valid ? (
               <>
@@ -50,7 +74,7 @@ export default async function TicketVerifyPage({ params }: Props) {
                 <XCircle className="text-red-500 shrink-0" size={28} />
                 <div>
                   <p className="font-semibold text-red-800 text-base">Invalid Ticket</p>
-                  <p className="text-red-600 text-sm">{result.error || "This ticket could not be verified"}</p>
+                  <p className="text-red-600 text-sm">{(result as any).error || "This ticket could not be verified"}</p>
                 </div>
               </>
             )}
@@ -58,7 +82,6 @@ export default async function TicketVerifyPage({ params }: Props) {
 
           {result.valid && (
             <div className="px-6 py-5 space-y-4">
-              {/* Event info */}
               {result.event?.name && (
                 <div className="bg-blue-50 rounded-lg px-4 py-3 border border-blue-100">
                   <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">
@@ -80,7 +103,6 @@ export default async function TicketVerifyPage({ params }: Props) {
                 </div>
               )}
 
-              {/* Ticket holder */}
               <div>
                 <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1">
                   <Ticket size={11} /> Ticket Holder

@@ -14,7 +14,7 @@ export async function GET(
   const admin = createAdminClient();
   const { data: ticket } = await admin
     .from("tickets")
-    .select("id, name, email, phone, notes, amount, created_at, event_id")
+    .select("id, name, amount, created_at, event_id")
     .eq("token", token)
     .single();
 

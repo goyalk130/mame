@@ -26,7 +26,7 @@ export async function POST() {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  } catch {
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

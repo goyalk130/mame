@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select("*, profile:profiles(*)")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Failed to add member" }, { status: 500 });
   return NextResponse.json(member);
 }
 
@@ -70,6 +70,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   const { error } = await service.from("project_members").delete().eq("id", memberId).eq("project_id", projectId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: "Failed to remove member" }, { status: 500 });
   return NextResponse.json({ success: true });
 }
