@@ -378,3 +378,120 @@ create policy "issue_assignees_delete" on public.issue_assignees for delete usin
 
 -- Backfill ran once on initial deploy — removed to prevent re-inserting
 -- rows that were intentionally deleted from issue_assignees.
+
+-- ── App Configuration ──────────────────────────────────────────────────────
+-- Global key/value settings (service-role only — no RLS needed).
+create table if not exists public.app_config (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz default now()
+);
+
+-- Default: signups open
+insert into public.app_config (key, value) values ('signup_enabled', 'true') on conflict do nothing;
+
+-- ── Events ─────────────────────────────────────────────────────────────────
+-- Top-level events per project (e.g. "Annual Conference 2025")
+create table if not exists public.events (
+  id          uuid primary key default gen_random_uuid(),
+  project_id  uuid not null references public.projects(id) on delete cascade,
+  name        text not null,
+  description text,
+  event_date  date,
+  venue       text,
+  created_by  uuid references public.profiles(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.events enable row level security;
+
+create index if not exists idx_events_project_id on public.events(project_id);
+
+do $$ begin
+  create policy "events_select" on public.events for select
+    using (is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "events_insert" on public.events for insert
+    with check (is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "events_update" on public.events for update
+    using (is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "events_delete" on public.events for delete
+    using (is_project_owner(project_id) or is_project_member(project_id));
+exception when duplicate_object then null; end $$;
+
+-- ── Tickets ─────────────────────────────────────────────────────────────────
+-- Individual attendee tickets within an event
+create table if not exists public.tickets (
+  id          uuid primary key default gen_random_uuid(),
+  event_id    uuid not null references public.events(id) on delete cascade,
+  name        text not null,
+  phone       text,
+  email       text,
+  notes       text,
+  amount      numeric(10,2),
+  token       text not null unique,
+  created_by  uuid references public.profiles(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.tickets enable row level security;
+
+create index if not exists idx_tickets_event_id on public.tickets(event_id);
+create index if not exists idx_tickets_token    on public.tickets(token);
+
+do $$ begin
+  create policy "tickets_select" on public.tickets for select using (
+    exists (select 1 from public.events e where e.id = event_id
+            and (is_project_owner(e.project_id) or is_project_member(e.project_id)))
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "tickets_insert" on public.tickets for insert with check (
+    exists (select 1 from public.events e where e.id = event_id
+            and (is_project_owner(e.project_id) or is_project_member(e.project_id)))
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create policy "tickets_delete" on public.tickets for delete using (
+    exists (select 1 from public.events e where e.id = event_id
+            and (is_project_owner(e.project_id) or is_project_member(e.project_id)))
+  );
+exception when duplicate_object then null; end $$;
+
+-- ── Events table migration (flat → two-level structure) ─────────────────────
+-- Add new columns added in the two-level redesign (idempotent)
+alter table public.events add column if not exists description text;
+alter table public.events add column if not exists event_date  date;
+alter table public.events add column if not exists venue       text;
+
+-- Drop old flat-ticket columns if they exist (they moved to the tickets table)
+do $$ begin alter table public.events drop column if exists phone;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists email;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists location; exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists notes;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists amount;   exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists token;    exception when others then null; end $$;
+
+-- ── Events table migration (flat → two-level structure) ─────────────────────
+-- Add new columns added in the two-level redesign (idempotent)
+alter table public.events add column if not exists description text;
+alter table public.events add column if not exists event_date  date;
+alter table public.events add column if not exists venue       text;
+
+-- Drop old flat-ticket columns if they exist (they moved to the tickets table)
+do $$ begin alter table public.events drop column if exists phone;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists email;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists location; exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists notes;    exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists amount;   exception when others then null; end $$;
+do $$ begin alter table public.events drop column if exists token;    exception when others then null; end $$;

@@ -21,6 +21,16 @@ export default function RegisterPage() {
       return;
     }
     setLoading(true);
+
+    // Check signup gate before attempting account creation
+    const gateRes = await fetch("/api/auth/check-signup");
+    const { allowed } = await gateRes.json();
+    if (!allowed) {
+      toast.error("Signups are currently closed. Contact the administrator.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
     const { data: signUpData, error } = await supabase.auth.signUp({
       email,

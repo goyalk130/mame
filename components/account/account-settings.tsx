@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Eye, EyeOff, KeyRound, User, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, KeyRound, User, CheckCircle2, ArrowLeft, Shield, ToggleLeft, ToggleRight } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
@@ -14,8 +14,41 @@ interface Props {
   fullName: string;
 }
 
+const SUPER_ADMIN_EMAIL = "goyalkaran130@gmail.com";
+
 export function AccountSettings({ userId, email, fullName }: Props) {
   const router = useRouter();
+  const isSuperAdmin = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+
+  // Super admin: signup toggle
+  const [signupEnabled, setSignupEnabled] = useState<boolean | null>(null);
+  const [togglingSignup, setTogglingSignup] = useState(false);
+
+  // Load current signup state on mount (super admin only)
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    fetch("/api/auth/check-signup")
+      .then((r) => r.json())
+      .then((d) => setSignupEnabled(d.allowed));
+  }, [isSuperAdmin]);
+
+  async function toggleSignup() {
+    if (signupEnabled === null) return;
+    setTogglingSignup(true);
+    const next = !signupEnabled;
+    const res = await fetch("/api/admin/signup-toggle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    });
+    if (res.ok) {
+      setSignupEnabled(next);
+      toast.success(next ? "Signups enabled" : "Signups disabled");
+    } else {
+      toast.error("Failed to update signup setting");
+    }
+    setTogglingSignup(false);
+  }
 
   // Profile
   const [name, setName] = useState(fullName);
@@ -254,6 +287,42 @@ export function AccountSettings({ userId, email, fullName }: Props) {
           </Button>
         </form>
       </section>
+
+      {/* ── Super Admin Controls ── only visible to the designated admin ── */}
+      {isSuperAdmin && (
+        <section className="bg-white border border-amber-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield size={16} className="text-amber-600" />
+            <h2 className="text-sm font-semibold text-amber-800">Admin Controls</h2>
+            <span className="ml-auto text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+              Super Admin
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Public Signups</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {signupEnabled === null
+                  ? "Loading…"
+                  : signupEnabled
+                  ? "New users can currently create accounts"
+                  : "Registration is disabled — only you can sign in"}
+              </p>
+            </div>
+            <button
+              onClick={toggleSignup}
+              disabled={togglingSignup || signupEnabled === null}
+              className="ml-4 shrink-0 text-amber-600 hover:text-amber-700 disabled:opacity-50 transition-colors"
+              title={signupEnabled ? "Disable signups" : "Enable signups"}
+            >
+              {signupEnabled
+                ? <ToggleRight size={36} />
+                : <ToggleLeft size={36} />}
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

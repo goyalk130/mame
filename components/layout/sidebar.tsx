@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb, X } from "lucide-react";
+import { LayoutGrid, List, ArrowLeft, Settings, LogOut, ChevronDown, Plus, BarChart2, Lightbulb, X, QrCode } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { Project } from "@/types";
@@ -77,6 +77,7 @@ export function Sidebar({ projects, currentProject, user, onClose }: SidebarProp
               <NavItem href={`/projects/${currentProject.key}/issues`} icon={<List size={14} />} label="Issues" pathname={pathname} collapsed={collapsed} />
               <NavItem href={`/projects/${currentProject.key}/status`} icon={<BarChart2 size={14} />} label="Status" pathname={pathname} collapsed={collapsed} />
               <NavItem href={`/projects/${currentProject.key}/ideas`} icon={<Lightbulb size={14} />} label="Ideas" pathname={pathname} collapsed={collapsed} />
+              <NavItem href={`/projects/${currentProject.key}/events`} icon={<QrCode size={14} />} label="Events" pathname={pathname} collapsed={collapsed} />
               <NavItem href={`/projects/${currentProject.key}/settings`} icon={<Settings size={14} />} label="Settings" pathname={pathname} collapsed={collapsed} />
             </nav>
           )}

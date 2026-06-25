@@ -1,14 +1,17 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { Suspense } from "react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const signupsClosed = searchParams.get("info") === "signups-closed";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,6 +43,11 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
             <p className="text-gray-500 mt-1">Sign in to your Mame account</p>
           </div>
+          {signupsClosed && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              New signups are currently closed. Please sign in with your existing account.
+            </div>
+          )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
@@ -67,14 +75,24 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline font-medium">
-              Sign up
-            </Link>
-          </p>
+          {!signupsClosed && (
+            <p className="mt-6 text-center text-sm text-gray-500">
+              Don&apos;t have an account?{" "}
+              <Link href="/register" className="text-blue-600 hover:underline font-medium">
+                Sign up
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
