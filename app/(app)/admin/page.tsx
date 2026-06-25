@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Check, X, Clock, Shield, Users, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
@@ -16,7 +15,6 @@ interface Profile {
 }
 
 export default function AdminPage() {
-  const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
@@ -25,7 +23,6 @@ export default function AdminPage() {
   async function load() {
     setLoading(true);
     const res = await fetch("/api/admin/requests");
-    if (res.status === 403) { router.push("/projects"); return; }
     const data = await res.json();
     setProfiles(Array.isArray(data) ? data : []);
     setLoading(false);
