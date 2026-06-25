@@ -134,7 +134,7 @@ export default async function TicketVerifyPage({ params }: Props) {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
-          Powered by <span className="text-blue-500">Kirigami Arts</span>
+          Powered by <a href="https://www.instagram.com/kirigamiarts/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Kirigami Arts</a>
         </p>
       </div>
     </div>
