@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Plus, QrCode, Trash2, Mail, Phone, DollarSign, Calendar, MapPin, Pencil, Check, X, Download } from "lucide-react";
+import { ArrowLeft, Plus, QrCode, Trash2, Mail, Phone, DollarSign, Calendar, MapPin, Pencil, Check, X, Download, Copy, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { QrModal } from "@/components/events/qr-modal";
@@ -43,6 +43,7 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<View>("list");
   const [qrTarget, setQrTarget] = useState<{ id: string; name: string } | null>(null);
+  const [emailTarget, setEmailTarget] = useState<Ticket | null>(null);
 
   // Edit event form state
   const [eName, setEName] = useState("");
@@ -323,6 +324,10 @@ export default function EventDetailPage() {
                       onClick={() => setQrTarget({ id: t.id, name: t.name })}>
                       <QrCode size={12} /> QR
                     </Button>
+                    <Button size="sm" variant="outline" className="gap-1 text-xs h-7 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                      onClick={() => setEmailTarget(t)}>
+                      <Mail size={12} /> Email
+                    </Button>
                     <button onClick={() => deleteTicket(t.id)}
                       className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                       title="Delete ticket">
@@ -339,6 +344,106 @@ export default function EventDetailPage() {
       {qrTarget && (
         <QrModal eventId={qrTarget.id} eventName={qrTarget.name} location={event.venue} onClose={() => setQrTarget(null)} isTicket />
       )}
+
+      {emailTarget && (
+        <EmailTemplateModal ticket={emailTarget} event={event} onClose={() => setEmailTarget(null)} />
+      )}
+    </div>
+  );
+}
+
+function EmailTemplateModal({ ticket, event, onClose }: {
+  ticket: Ticket;
+  event: Event;
+  onClose: () => void;
+}) {
+  const [copiedSubject, setCopiedSubject] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+
+  const subject = `Your Ticket is Confirmed — ${event.name}`;
+
+  const details = [
+    `📅 Date: ${event.event_date ? format(new Date(event.event_date), "EEEE, MMMM d, yyyy") : "TBD"}`,
+    event.venue ? `📍 Venue: ${event.venue}` : null,
+    ticket.amount != null ? `💳 Amount Paid: ₹${Number(ticket.amount).toFixed(2)}` : null,
+  ].filter(Boolean).join("\n");
+
+  const body = `Hi ${ticket.name},
+
+We're excited to confirm your ticket for ${event.name}!
+
+${details}
+
+Please carry this email or your QR code ticket at the entrance for verification.${event.description ? `\n\n${event.description}` : ""}
+
+Looking forward to seeing you there!
+
+Warm regards,
+Kirigami Arts`;
+
+  function copy(text: string, which: "subject" | "body") {
+    navigator.clipboard.writeText(text);
+    if (which === "subject") {
+      setCopiedSubject(true);
+      setTimeout(() => setCopiedSubject(false), 2000);
+    } else {
+      setCopiedBody(true);
+      setTimeout(() => setCopiedBody(false), 2000);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Mail size={16} className="text-blue-600" />
+            <p className="font-semibold text-gray-900 text-sm">Email Template</p>
+            <span className="text-xs text-gray-400">— {ticket.name}</span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-0.5">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          {/* Subject */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject</label>
+              <button
+                onClick={() => copy(subject, "subject")}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                {copiedSubject ? <><CheckCheck size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+              </button>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-800 select-all">
+              {subject}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Body</label>
+              <button
+                onClick={() => copy(body, "body")}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                {copiedBody ? <><CheckCheck size={12} /> Copied!</> : <><Copy size={12} /> Copy</>}
+              </button>
+            </div>
+            <pre className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-3 text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed select-all">
+              {body}
+            </pre>
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100">
+          <p className="text-xs text-gray-400 text-center">Copy subject and body separately, then paste into your email client</p>
+        </div>
+      </div>
     </div>
   );
 }
