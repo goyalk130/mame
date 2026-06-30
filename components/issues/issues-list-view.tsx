@@ -248,6 +248,7 @@ export function IssuesListView({ project, initialIssues, members, virtualMembers
           virtualMembers={virtualMembers}
           userId={userId}
           onCreated={handleIssueCreated}
+          sprints={sprints}
         />
       )}
 

@@ -120,6 +120,8 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId && issueMatch(i));
   const activeSprint = sprints.find((s) => s.status === "active");
   const visibleSprints = sprints.filter((s) => s.status !== "completed");
+  const completedSprints = sprints.filter((s) => s.status === "completed");
+  const [showCompleted, setShowCompleted] = useState(false);
 
   async function onDragEnd(result: DropResult) {
     const { source, destination, draggableId } = result;
@@ -601,6 +603,56 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
             </div>
           );
         })}
+
+        {/* Completed sprints (collapsed by default) */}
+        {completedSprints.length > 0 && (
+          <div className="mb-2">
+            <button
+              onClick={() => setShowCompleted((v) => !v)}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 px-1 py-1 mb-2 transition-colors"
+            >
+              {showCompleted ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+              {showCompleted ? "Hide" : "Show"} {completedSprints.length} completed sprint{completedSprints.length > 1 ? "s" : ""}
+            </button>
+            {showCompleted && completedSprints.map((sprint) => {
+              const spIssues = issues.filter((i) => i.sprint_id === sprint.id);
+              const isCollapsed = collapsed.has(`completed-${sprint.id}`);
+              const doneCount = spIssues.filter((i) => DONE_STATUSES.includes(i.status)).length;
+              return (
+                <div key={sprint.id} className="mb-2 border border-gray-200 rounded-lg overflow-hidden bg-white opacity-75">
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => toggleCollapse(`completed-${sprint.id}`)} className="text-gray-400 hover:text-gray-600">
+                        {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      <span className="text-sm font-medium text-gray-500">{sprint.name}</span>
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Completed</span>
+                      <span className="text-xs text-gray-400">{spIssues.length} issues · {doneCount} done</span>
+                    </div>
+                  </div>
+                  {!isCollapsed && (
+                    <div className="divide-y divide-gray-100">
+                      {spIssues.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-gray-400">No issues</div>
+                      ) : spIssues.map((issue) => (
+                        <div key={issue.id}
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => openIssue(issue)}
+                        >
+                          <span className={cn("text-xs px-2 py-0.5 rounded-full shrink-0", statusBadgeClass(issue.status))}>
+                            {STATUS_LABELS[issue.status as IssueStatus]}
+                          </span>
+                          <span className="text-xs font-mono text-gray-400 shrink-0">{issue.key}</span>
+                          <span className="text-sm text-gray-700 truncate">{issue.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Bulk move toolbar */}
         {selectedIds.size > 0 && (

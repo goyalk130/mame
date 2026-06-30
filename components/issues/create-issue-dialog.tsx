@@ -23,11 +23,17 @@ interface Props {
   userId: string;
   onCreated: (issue: Issue) => void;
   parentId?: string;
+  sprints?: import("@/types").Sprint[];
 }
 
 export function CreateIssueDialog({
-  open, onClose, projectId, projectKey, defaultStatus, sprintId, members, virtualMembers = [], userId, onCreated, parentId
+  open, onClose, projectId, projectKey, defaultStatus, sprintId, members, virtualMembers = [], userId, onCreated, parentId, sprints = []
 }: Props) {
+  const activeSprint = sprints.find((s) => s.status === "active");
+  const visibleSprints = sprints.filter((s) => s.status !== "completed");
+  // Default: use passed sprintId, or fall back to active sprint
+  const defaultSprintId = sprintId ?? activeSprint?.id ?? null;
+  const [selectedSprintId, setSelectedSprintId] = useState<string | null>(defaultSprintId);
   const [title, setTitle] = useState("");
   const [type, setType] = useState<IssueType>("task");
   const [status, setStatus] = useState<IssueStatus>(defaultStatus);
@@ -112,7 +118,7 @@ export function CreateIssueDialog({
         status,
         priority,
         project_id: projectId,
-        sprint_id: sprintId,
+        sprint_id: selectedSprintId,
         assignee_id: firstReal,
         virtual_assignee_id: firstVirtual,
         reporter_id: userId,
@@ -144,7 +150,7 @@ export function CreateIssueDialog({
 
     toast.success(`${issueKey} created`);
     onCreated(data as Issue);
-    setTitle(""); setType("task"); setPriority("medium"); setAssigneeIds([]); setStoryPoints(""); setStartDate(""); setDueDate(""); setSelectedParentId("none");
+    setTitle(""); setType("task"); setPriority("medium"); setAssigneeIds([]); setStoryPoints(""); setStartDate(""); setDueDate(""); setSelectedParentId("none"); setSelectedSprintId(defaultSprintId);
     setLoading(false);
     onClose();
   }
@@ -207,6 +213,24 @@ export function CreateIssueDialog({
               />
             </div>
           </div>
+          {/* Sprint selector — only shown when sprints are available */}
+          {visibleSprints.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sprint</label>
+              <Select value={selectedSprintId ?? "backlog"} onValueChange={(v) => setSelectedSprintId(v === "backlog" ? null : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="backlog">Backlog (no sprint)</SelectItem>
+                  {visibleSprints.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}{s.status === "active" ? " (Active)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Parent issue picker — searchable combobox */}
           {!parentId && getParentTypes().length > 0 && (
             <div>
