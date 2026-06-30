@@ -98,6 +98,8 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleteSprintId, setDeleteSprintId] = useState<string | null>(null);
   const [deletingSprint, setDeletingSprint] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMoving, setBulkMoving] = useState(false);
 
   const supabase = createClient();
 
@@ -113,7 +115,8 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
     return true;
   }
 
-  const backlogIssues = issues.filter((i) => !i.sprint_id && issueMatch(i));
+  const DONE_STATUSES = ["done", "completed", "not_done"];
+  const backlogIssues = issues.filter((i) => !i.sprint_id && !DONE_STATUSES.includes(i.status) && issueMatch(i));
   const sprintIssues = (sprintId: string) => issues.filter((i) => i.sprint_id === sprintId && issueMatch(i));
   const activeSprint = sprints.find((s) => s.status === "active");
   const visibleSprints = sprints.filter((s) => s.status !== "completed");
@@ -200,16 +203,59 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   }
 
   async function completeSprint(sprint: Sprint) {
-    if (!confirm("Complete this sprint? Unfinished issues will move to backlog.")) return;
-    const unfinished = issues.filter((i) => i.sprint_id === sprint.id && i.status !== "done");
+    const DONE_STATUSES = ["done", "completed", "not_done"];
+    const unfinished = issues.filter((i) => i.sprint_id === sprint.id && !DONE_STATUSES.includes(i.status));
+    const doneCount = issues.filter((i) => i.sprint_id === sprint.id && DONE_STATUSES.includes(i.status)).length;
+    const msg = unfinished.length > 0
+      ? `Complete sprint? ${doneCount} done issue(s) will be removed, ${unfinished.length} unfinished issue(s) will move to backlog.`
+      : `Complete sprint? All ${doneCount} issues are done — they will be removed from the board.`;
+    if (!confirm(msg)) return;
     if (unfinished.length > 0) {
       await supabase.from("issues").update({ sprint_id: null }).in("id", unfinished.map((i) => i.id));
-      setIssues((prev) => prev.map((i) => unfinished.find((u) => u.id === i.id) ? { ...i, sprint_id: null } : i));
     }
+    // Done issues: remove from sprint (sprint_id stays null, they stay done — not in backlog)
+    const doneIds = issues.filter((i) => i.sprint_id === sprint.id && DONE_STATUSES.includes(i.status)).map((i) => i.id);
+    if (doneIds.length > 0) {
+      await supabase.from("issues").update({ sprint_id: null }).in("id", doneIds);
+    }
+    setIssues((prev) => prev.map((i) => {
+      if (i.sprint_id !== sprint.id) return i;
+      return { ...i, sprint_id: null };
+    }));
     const { data, error } = await supabase.from("sprints").update({ status: "completed" }).eq("id", sprint.id).select().single();
     if (error) { toast.error(error.message); return; }
     setSprints((prev) => prev.map((s) => s.id === sprint.id ? data : s));
     toast.success("Sprint completed!");
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    const allSelected = ids.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => allSelected ? next.delete(id) : next.add(id));
+      return next;
+    });
+  }
+
+  async function bulkMove(targetSprintId: string | null) {
+    if (selectedIds.size === 0) return;
+    setBulkMoving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from("issues").update({ sprint_id: targetSprintId }).in("id", ids);
+    if (error) { toast.error("Failed to move issues"); setBulkMoving(false); return; }
+    setIssues((prev) => prev.map((i) => ids.includes(i.id) ? { ...i, sprint_id: targetSprintId } : i));
+    setSelectedIds(new Set());
+    const target = sprints.find((s) => s.id === targetSprintId);
+    toast.success(`Moved ${ids.length} issue${ids.length > 1 ? "s" : ""} to ${target ? target.name : "Backlog"}`);
+    setBulkMoving(false);
   }
 
   function openEditSprint(sprint: Sprint) {
@@ -471,6 +517,14 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
                   <button onClick={() => toggleCollapse(sprint.id)} className="text-gray-500 hover:text-gray-700 shrink-0">
                     {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                   </button>
+                  {spIssues.length > 0 && (
+                    <input type="checkbox" className="shrink-0 cursor-pointer"
+                      checked={spIssues.every((i) => selectedIds.has(i.id))}
+                      onChange={() => toggleSelectAll(spIssues.map((i) => i.id))}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Select all in sprint"
+                    />
+                  )}
                   <span className="font-semibold text-gray-900 truncate">{sprint.name}</span>
                   {sprint.status === "active" && (
                     <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium shrink-0">Active</span>
@@ -534,6 +588,8 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
                             issue={issue}
                             index={idx}
                             onSelect={openIssue}
+                            selected={selectedIds.has(issue.id)}
+                            onToggleSelect={toggleSelect}
                           />
                         ))}
                       </div>
@@ -546,6 +602,26 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
           );
         })}
 
+        {/* Bulk move toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="sticky bottom-4 z-30 flex items-center gap-2 bg-gray-900 text-white rounded-xl px-4 py-2.5 shadow-xl w-fit mx-auto mb-3">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <span className="text-gray-600 mx-1">·</span>
+            <span className="text-xs text-gray-400 mr-1">Move to:</span>
+            {visibleSprints.map((s) => (
+              <button key={s.id} disabled={bulkMoving} onClick={() => bulkMove(s.id)}
+                className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-2.5 py-1 rounded-lg transition-colors">
+                {s.name}
+              </button>
+            ))}
+            <button disabled={bulkMoving} onClick={() => bulkMove(null)}
+              className="text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 px-2.5 py-1 rounded-lg transition-colors">
+              Backlog
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="ml-1 text-gray-400 hover:text-white text-xs">✕ Clear</button>
+          </div>
+        )}
+
         {/* Backlog */}
         <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -553,6 +629,13 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
               <button onClick={() => toggleCollapse("backlog")} className="text-gray-500 hover:text-gray-700">
                 {collapsed.has("backlog") ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
               </button>
+              {backlogIssues.length > 0 && (
+                <input type="checkbox" className="shrink-0 cursor-pointer"
+                  checked={backlogIssues.every((i) => selectedIds.has(i.id))}
+                  onChange={() => toggleSelectAll(backlogIssues.map((i) => i.id))}
+                  title="Select all in backlog"
+                />
+              )}
               <span className="font-semibold text-gray-900">Backlog</span>
               <span className="text-xs text-gray-500">{backlogIssues.length} issues</span>
             </div>
@@ -584,6 +667,8 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
                         issue={issue}
                         index={idx}
                         onSelect={openIssue}
+                        selected={selectedIds.has(issue.id)}
+                        onToggleSelect={toggleSelect}
                       />
                     ))}
                   </div>
@@ -723,7 +808,13 @@ export function BacklogView({ project, initialSprints, initialIssues, initialLab
   );
 }
 
-function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onSelect: (i: Issue) => void }) {
+function IssueRow({ issue, index, onSelect, selected, onToggleSelect }: {
+  issue: Issue;
+  index: number;
+  onSelect: (i: Issue) => void;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}) {
   return (
     <Draggable draggableId={issue.id} index={index}>
       {(provided, snapshot) => (
@@ -732,11 +823,21 @@ function IssueRow({ issue, index, onSelect }: { issue: Issue; index: number; onS
           {...provided.draggableProps}
           className={cn(
             "flex items-center gap-2 px-3 py-2.5 group cursor-pointer transition-colors border-b border-gray-100 last:border-0",
-            !snapshot.isDragging && TIME_STATUS_BG[getTimeStatus(issue)],
+            selected && "bg-blue-50",
+            !selected && !snapshot.isDragging && TIME_STATUS_BG[getTimeStatus(issue)],
             snapshot.isDragging && "bg-blue-50 shadow-md rounded border border-blue-200 opacity-90"
           )}
           onClick={() => onSelect(issue)}
         >
+          {/* Checkbox */}
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={() => onToggleSelect?.(issue.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+            style={selected ? { opacity: 1 } : undefined}
+          />
           {/* Drag handle */}
           <div
             {...provided.dragHandleProps}
