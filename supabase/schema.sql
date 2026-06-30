@@ -214,7 +214,7 @@ create policy "projects_update"  on projects for update using (auth.uid() = owne
 create policy "projects_delete"  on projects for delete using (auth.uid() = owner_id);
 
 -- PROJECT_MEMBERS
-create policy "members_select"  on project_members for select using (user_id = auth.uid() or is_project_owner(project_id));
+create policy "members_select"  on project_members for select using (is_project_member(project_id) or is_project_owner(project_id));
 create policy "members_insert"  on project_members for insert with check (is_project_owner(project_id));
 create policy "members_delete"  on project_members for delete using (is_project_owner(project_id));
 
